@@ -1,0 +1,16 @@
+{
+  "Name": "Weekly Sunday 2 AM",
+  "Description": "General maintenance window every Sunday at 2:00 AM for 4 hours. Standard weekend maintenance for servers.",
+  "RecurrenceType": "Weekly",
+  "WindowType": "Any",
+  "DurationHours": 4,
+  "DurationMinutes": 0,
+  "StartHour": 2,
+  "StartMinute": 0,
+  "IsUtc": false,
+  "DayOfWeek": "Sunday",
+  "WeekOrder": "First",
+  "DayOfMonth": 1,
+  "RecurCount": 1,
+  "PatchTuesdayOffset": -1
+}
