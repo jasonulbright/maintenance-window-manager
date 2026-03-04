@@ -1,0 +1,16 @@
+{
+  "Name": "Monthly First Saturday",
+  "Description": "General maintenance window on the first Saturday of each month at 1:00 AM for 6 hours. Good for monthly server maintenance tasks.",
+  "RecurrenceType": "MonthlyByWeekday",
+  "WindowType": "Any",
+  "DurationHours": 6,
+  "DurationMinutes": 0,
+  "StartHour": 1,
+  "StartMinute": 0,
+  "IsUtc": false,
+  "DayOfWeek": "Saturday",
+  "WeekOrder": "First",
+  "DayOfMonth": 1,
+  "RecurCount": 1,
+  "PatchTuesdayOffset": -1
+}
