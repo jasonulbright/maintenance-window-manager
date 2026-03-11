@@ -178,44 +178,24 @@ function Test-CMConnection {
 function Get-AllMaintenanceWindows {
     <#
     .SYNOPSIS
-        Retrieves all maintenance windows across all collections via WMI.
+        Retrieves all maintenance windows across all device collections.
     .DESCRIPTION
-        Queries SMS_CollectionSettings for ServiceWindow entries and joins with
-        SMS_Collection for collection names. Returns flat PSCustomObject array.
+        Iterates all device collections via Get-CMDeviceCollection and queries
+        each for maintenance windows via Get-CMMaintenanceWindow. Returns flat
+        PSCustomObject array.
     #>
-    Write-Log "Querying all maintenance windows via WMI..."
+    Write-Log "Querying all maintenance windows via CM cmdlets..."
 
-    $siteCode = $script:ConnectedSiteCode
-    $provider = $script:ConnectedSMSProvider
-
-    # Get all collection settings that have service windows
-    $settingsQuery = "SELECT * FROM SMS_CollectionSettings WHERE CollectionID IS NOT NULL"
-    $allSettings = Get-CimInstance -Namespace "root\SMS\site_$siteCode" -Query $settingsQuery `
-        -ComputerName $provider -ErrorAction Stop
-
-    # Build collection name lookup
-    $collQuery = "SELECT CollectionID, Name, MemberCount FROM SMS_Collection WHERE CollectionType = 2"
-    $allCollections = Get-CimInstance -Namespace "root\SMS\site_$siteCode" -Query $collQuery `
-        -ComputerName $provider -ErrorAction Stop
-
-    $collLookup = @{}
-    foreach ($c in $allCollections) {
-        $collLookup[$c.CollectionID] = $c
-    }
+    # Get all device collections
+    $allCollections = @(Get-CMDeviceCollection -ErrorAction Stop)
+    Write-Log "Checking $($allCollections.Count) device collections for maintenance windows..."
 
     $results = [System.Collections.ArrayList]::new()
 
-    foreach ($setting in $allSettings) {
-        $collId = $setting.CollectionID
+    foreach ($coll in $allCollections) {
+        $collId = $coll.CollectionID
+        $collName = $coll.Name
 
-        # Lazy-load the ServiceWindow embedded objects
-        $fullSetting = Get-CimInstance -Namespace "root\SMS\site_$siteCode" `
-            -Query "SELECT * FROM SMS_CollectionSettings WHERE CollectionID = '$collId'" `
-            -ComputerName $provider -ErrorAction SilentlyContinue
-
-        if (-not $fullSetting) { continue }
-
-        # Get service windows for this collection via cmdlet (more reliable for embedded objects)
         try {
             $windows = Get-CMMaintenanceWindow -CollectionId $collId -ErrorAction SilentlyContinue
         }
@@ -225,9 +205,6 @@ function Get-AllMaintenanceWindows {
         }
 
         if (-not $windows) { continue }
-
-        $collInfo = $collLookup[$collId]
-        $collName = if ($collInfo) { $collInfo.Name } else { $collId }
 
         foreach ($w in $windows) {
             $typeStr = switch ([int]$w.ServiceWindowType) {

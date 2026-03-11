@@ -17,6 +17,10 @@ The MECM console buries maintenance windows deep in individual collection proper
 - **Schedule Builder** -- visual dialog for defining recurrence patterns with duration, type, and UTC options
 - **Export** -- CSV and HTML reports of all maintenance windows
 
+## How It Works
+
+All MECM data access uses supported ConfigurationManager PowerShell cmdlets via the CM PSDrive (`Get-CMDeviceCollection`, `Get-CMMaintenanceWindow`, `New-CMMaintenanceWindow`, `Set-CMMaintenanceWindow`, `Remove-CMMaintenanceWindow`). No direct WMI queries.
+
 ## Prerequisites
 
 | Requirement | Details |
