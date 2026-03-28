@@ -1,0 +1,7 @@
+{
+  "ProjectType": "mecm-tool",
+  "Status": "active",
+  "Category": "MECM",
+  "ValidationSchedule": "monthly",
+  "Notes": "Maintenance window management. Migrated from WMI to CM cmdlets. Stable."
+}
