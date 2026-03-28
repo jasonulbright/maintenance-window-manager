@@ -2,3 +2,4 @@ Logs/
 Reports/
 *.windowstate.json
 *.prefs.json
+project-manifest.json
