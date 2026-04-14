@@ -1,8 +1,8 @@
-{
-  "ProjectType": "mecm-tool",
-  "Description": "MECM maintenance window viewer and bulk editor",
-  "Status": "active",
-  "Category": "MECM",
-  "ValidationSchedule": "monthly",
-  "Notes": "TASK: C# + Fluent UI conversion"
+﻿{
+    "ProjectType":  "mecm-tool",
+    "Description":  "MECM maintenance window viewer and bulk editor",
+    "Status":  "active",
+    "Category":  "MECM",
+    "ValidationSchedule":  "monthly",
+    "Notes":  "PLAN: C# Fluent UI conversion as private repo fork"
 }
