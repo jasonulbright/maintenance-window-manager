@@ -1,0 +1,16 @@
+{
+  "Name": "Patch Tuesday + 7 Days",
+  "Description": "Software updates window starting 7 days after Patch Tuesday (following Tuesday). For server groups that deploy patches one week after release.",
+  "RecurrenceType": "MonthlyByDate",
+  "WindowType": "SoftwareUpdatesOnly",
+  "DurationHours": 4,
+  "DurationMinutes": 0,
+  "StartHour": 2,
+  "StartMinute": 0,
+  "IsUtc": false,
+  "DayOfWeek": "Sunday",
+  "WeekOrder": "First",
+  "DayOfMonth": 1,
+  "RecurCount": 1,
+  "PatchTuesdayOffset": 7
+}
