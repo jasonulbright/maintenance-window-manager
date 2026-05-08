@@ -1,0 +1,16 @@
+{
+  "Name": "Daily After Hours",
+  "Description": "General maintenance window nightly at 11:00 PM for 6 hours. Covers overnight maintenance for non-critical servers.",
+  "RecurrenceType": "Daily",
+  "WindowType": "Any",
+  "DurationHours": 6,
+  "DurationMinutes": 0,
+  "StartHour": 23,
+  "StartMinute": 0,
+  "IsUtc": false,
+  "DayOfWeek": "Sunday",
+  "WeekOrder": "First",
+  "DayOfMonth": 1,
+  "RecurCount": 1,
+  "PatchTuesdayOffset": -1
+}
