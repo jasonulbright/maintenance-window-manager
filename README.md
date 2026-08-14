@@ -1,5 +1,10 @@
 # Maintenance Window Manager
 
+[![Latest release](https://img.shields.io/github/v/release/jasonulbright/maintenance-window-manager?label=release)](https://github.com/jasonulbright/maintenance-window-manager/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/jasonulbright/maintenance-window-manager/total?label=downloads)](https://github.com/jasonulbright/maintenance-window-manager/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
+[![License](https://img.shields.io/github/license/jasonulbright/maintenance-window-manager)](LICENSE)
+
 A MahApps.Metro WPF GUI for auditing, creating, editing, and bulk-applying MECM device collection maintenance windows. The MECM console buries maintenance windows deep in individual collection properties; this tool gives you a single-pane view of every window in the environment with full CRUD, schedule editing, templates, and gap analysis.
 
 ![Maintenance Window Manager](screenshot.png)
