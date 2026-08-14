@@ -1,20 +1,14 @@
 @{
     RootModule        = 'MaintWindowMgrCommon.psm1'
-    ModuleVersion     = '1.0.1'
+    ModuleVersion     = '1.1.0'
     GUID              = 'a1d2e3f4-5678-9abc-def0-123456789abc'
     Author            = 'Jason Ulbright'
     Description       = 'Maintenance window management for MECM device collections.'
     PowerShellVersion = '5.1'
 
     FunctionsToExport = @(
-        # Logging
-        'Initialize-Logging'
-        'Write-Log'
-
-        # CM Connection
-        'Connect-CMSite'
-        'Disconnect-CMSite'
-        'Test-CMConnection'
+        # Logging and CM connection come from the vendored SuiteCommon
+        # module (Lib\SuiteCommon), imported globally by the root module.
 
         # Data Retrieval
         'Get-AllMaintenanceWindows'

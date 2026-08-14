@@ -19,7 +19,7 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 1.0.0
+    Version    : 1.1.0
     Updated    : 2026-05-02
 #>
 
@@ -88,29 +88,17 @@ $global:PrefsPath = Join-Path $PSScriptRoot 'MaintWindowMgr.prefs.json'
 function Get-MwmPreferences {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification='Returns the full preferences hashtable by design.')]
     param()
-    $defaults = @{
+    return Read-SuiteSettings -Path $global:PrefsPath -Defaults @{
         DarkMode    = $true
         SiteCode    = ''
         SMSProvider = ''
     }
-    if (Test-Path -LiteralPath $global:PrefsPath) {
-        try {
-            $loaded = Get-Content -LiteralPath $global:PrefsPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-            foreach ($k in @($defaults.Keys)) {
-                $val = $loaded.$k
-                if ($null -ne $val) { $defaults[$k] = $val }
-            }
-        } catch { $null = $_ }
-    }
-    return $defaults
 }
 
 function Save-MwmPreferences {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification='Writes the full preferences hashtable by design.')]
     param([Parameter(Mandatory)][hashtable]$Prefs)
-    try {
-        $Prefs | ConvertTo-Json | Set-Content -LiteralPath $global:PrefsPath -Encoding UTF8
-    } catch { $null = $_ }
+    $null = Save-SuiteSettings -Path $global:PrefsPath -Settings $Prefs
 }
 
 $global:Prefs = Get-MwmPreferences
@@ -2294,7 +2282,7 @@ function Show-OptionsDialog {
             </StackPanel>
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
                 <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <TextBlock Text="Maintenance Window Manager v1.0.0" FontSize="13" FontWeight="SemiBold"/>
+                <TextBlock Text="Maintenance Window Manager v1.1.0" FontSize="13" FontWeight="SemiBold"/>
                 <TextBlock Text="Browse, create, edit, toggle, and bulk-apply MECM maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."

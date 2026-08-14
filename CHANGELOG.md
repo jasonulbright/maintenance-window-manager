@@ -3,6 +3,19 @@
 All notable changes to Maintenance Window Manager are documented in this
 file.
 
+## [1.1.0] - 2026-08-14
+
+### Changed
+
+- **Shared plumbing moved to the vendored `SuiteCommon` module.** Logging
+  (`Initialize-Logging`, `Write-Log`) and CM site connection
+  (`Connect-CMSite`, `Disconnect-CMSite`, `Test-CMConnection`) now load
+  from `Lib\SuiteCommon\`, shared across the tool suite and synced from
+  the suite-core repository instead of hand-edited per repo. Behavior is
+  unchanged — same log format, same connection flow — and the connection
+  gains provider rebind when the configured SMS Provider changes plus
+  rebuild of a stale drive whose provider connection died.
+
 ## [1.0.0] - 2026-05-02
 
 Maintenance Window Manager is a MahApps.Metro WPF desktop tool for
