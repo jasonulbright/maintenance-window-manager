@@ -3,6 +3,16 @@
 All notable changes to Maintenance Window Manager are documented in this
 file.
 
+## [1.2.1] - 2026-08-16
+
+### Changed
+
+- **Vendored `SuiteCommon` 0.3.2.** Window restore applies the saved
+  geometry before maximizing, so un-maximizing returns to the saved size
+  instead of the XAML defaults; background runspace bootstrap failures
+  are named in the log instead of surfacing later as an unrelated
+  "term not recognized".
+
 ## [1.2.0] - 2026-08-16
 
 ### Changed
