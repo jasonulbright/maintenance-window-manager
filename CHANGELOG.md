@@ -3,6 +3,20 @@
 All notable changes to Maintenance Window Manager are documented in this
 file.
 
+## [1.2.0] - 2026-08-16
+
+### Changed
+
+- **Window chrome, theming, dialogs, background-work, and the collection
+  widgets now come from the vendored `SuiteCommon` module** (0.3.0).
+  The confirm dialog and collection picker/tree are the shared
+  implementations (confirm call sites pass their owner explicitly).
+  Behavior gains: hook state no longer leaks on window close, a
+  maximized close persists the pre-maximize geometry, an off-screen
+  saved position clamps into the nearest monitor, background teardown no
+  longer blocks the UI thread, and the collection tree's filtered-count
+  status line no longer receives a stray boolean ahead of the count.
+
 ## [1.1.0] - 2026-08-14
 
 ### Changed

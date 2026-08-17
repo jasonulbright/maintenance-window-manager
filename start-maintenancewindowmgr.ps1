@@ -1832,7 +1832,7 @@ function Show-OptionsDialog {
             </StackPanel>
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
                 <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <TextBlock Text="Maintenance Window Manager v1.1.0" FontSize="13" FontWeight="SemiBold"/>
+                <TextBlock Text="Maintenance Window Manager v1.2.0" FontSize="13" FontWeight="SemiBold"/>
                 <TextBlock Text="Browse, create, edit, toggle, and bulk-apply MECM maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."
