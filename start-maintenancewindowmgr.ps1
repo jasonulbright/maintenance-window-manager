@@ -19,7 +19,7 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 1.2.2
+    Version    : 1.2.3
     Updated    : 2026-05-02
 #>
 
@@ -119,6 +119,13 @@ $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
 $txtAppTitle        = $window.FindName('txtAppTitle')
 $txtVersion         = $window.FindName('txtVersion')
+# Installed version: the script header is the single source of truth for the
+# sidebar label and the About panel.
+$script:AppVersion = '0.0.0'
+foreach ($headerLine in (Get-Content -LiteralPath $PSCommandPath -TotalCount 80)) {
+    if ($headerLine -match '^\s*Version\s*:\s*([0-9][0-9\.]*[0-9])\s*$') { $script:AppVersion = $Matches[1]; break }
+}
+if ($txtVersion) { $txtVersion.Text = 'v' + $script:AppVersion }
 $txtThemeLabel      = $window.FindName('txtThemeLabel')
 $toggleTheme        = $window.FindName('toggleTheme')
 
@@ -1832,7 +1839,7 @@ function Show-OptionsDialog {
             </StackPanel>
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
                 <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <TextBlock Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="SemiBold"/>
+                <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="SemiBold"/>
                 <TextBlock Text="Browse, create, edit, toggle, and bulk-apply MECM maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."
@@ -1859,6 +1866,8 @@ function Show-OptionsDialog {
     $btnCatAbout      = $dlg.FindName('btnCatAbout')
     $paneConnection   = $dlg.FindName('paneConnection')
     $paneAbout        = $dlg.FindName('paneAbout')
+    $txtAboutVersion  = $dlg.FindName('txtAboutVersion')
+    if ($txtAboutVersion) { $txtAboutVersion.Text = ($txtAboutVersion.Text -replace 'v[0-9][0-9\.]*[0-9]\s*$', ('v' + $script:AppVersion)) }
     $txtSiteCode      = $dlg.FindName('txtSiteCode')
     $txtSmsProvider   = $dlg.FindName('txtSmsProvider')
     $btnOk            = $dlg.FindName('btnOk')

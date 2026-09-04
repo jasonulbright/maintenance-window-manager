@@ -148,7 +148,7 @@
                 <StackPanel DockPanel.Dock="Top" Margin="14,14,14,12">
                     <TextBlock x:Name="txtAppTitle" Text="Maintenance Window Manager"
                                FontSize="20" FontWeight="Bold" TextWrapping="Wrap"/>
-                    <TextBlock x:Name="txtVersion" Text="v1.0.0" FontSize="10"
+                    <TextBlock x:Name="txtVersion" Text="" FontSize="10"
                                Foreground="{DynamicResource MahApps.Brushes.Gray1}"
                                Margin="0,2,0,0"/>
                 </StackPanel>
