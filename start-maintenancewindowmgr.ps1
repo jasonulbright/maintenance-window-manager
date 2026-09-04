@@ -19,7 +19,7 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 1.2.1
+    Version    : 1.2.2
     Updated    : 2026-05-02
 #>
 
