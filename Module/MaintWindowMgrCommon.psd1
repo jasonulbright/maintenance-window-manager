@@ -1,6 +1,6 @@
 @{
     RootModule        = 'MaintWindowMgrCommon.psm1'
-    ModuleVersion     = '2026.09.21.0007'
+    ModuleVersion     = '2026.09.21.0008'
     GUID              = 'a1d2e3f4-5678-9abc-def0-123456789abc'
     Author            = 'Jason Ulbright'
     Description       = 'Maintenance window management for Configuration Manager device collections.'

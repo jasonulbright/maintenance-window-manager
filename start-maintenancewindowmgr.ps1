@@ -19,7 +19,7 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 2026.09.21.0007
+    Version    : 2026.09.21.0008
     Updated    : 2026-09-21
 #>
 
@@ -102,6 +102,11 @@ function Save-MwmPreferences {
 }
 
 $global:Prefs = Get-MwmPreferences
+
+# The suite launcher hands its site code and provider to each tool it starts.
+# A value saved in this tool wins; the launcher value fills an empty one.
+if (-not $global:Prefs.SiteCode    -and $env:SUITE_CM_SITECODE) { $global:Prefs.SiteCode    = [string]$env:SUITE_CM_SITECODE }
+if (-not $global:Prefs.SMSProvider -and $env:SUITE_CM_PROVIDER) { $global:Prefs.SMSProvider = [string]$env:SUITE_CM_PROVIDER }
 
 # =============================================================================
 # Tool log.
