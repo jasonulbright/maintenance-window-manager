@@ -1,9 +1,9 @@
 @{
     RootModule        = 'MaintWindowMgrCommon.psm1'
-    ModuleVersion     = '1.2.3'
+    ModuleVersion     = '2026.09.21.0007'
     GUID              = 'a1d2e3f4-5678-9abc-def0-123456789abc'
     Author            = 'Jason Ulbright'
-    Description       = 'Maintenance window management for MECM device collections.'
+    Description       = 'Maintenance window management for Configuration Manager device collections.'
     PowerShellVersion = '5.1'
 
     FunctionsToExport = @(
