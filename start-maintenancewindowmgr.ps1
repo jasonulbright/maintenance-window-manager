@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    MahApps.Metro WPF shell for the MECM Maintenance Window Manager.
+    Main window of Maintenance Window Manager, a tool that audits and edits Configuration Manager maintenance windows.
 
 .DESCRIPTION
     Sidebar navigation across three views (Windows, Coverage, Templates),
@@ -19,8 +19,8 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 1.2.3
-    Updated    : 2026-05-02
+    Version    : 2026.09.21.0007
+    Updated    : 2026-09-21
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification='Per feedback_ps_wpf_handler_rules.md and PS51-WPF-001..003: flat-.ps1 GetNewClosure strips $script: scope. $global: survives closure scope-strip and keeps shared mutable state reachable from closure-captured handlers.')]
@@ -1182,7 +1182,7 @@ function Show-NewWindowDialog {
         }
         $txtWindowName.Text = [string]$Existing.WindowName
         # Name IS editable in edit mode -- rename triggers a delete + recreate
-        # because MECM keys maintenance windows by name. Original name kept so
+        # because ConfigMgr keys maintenance windows by name. Original name kept so
         # we can detect the rename on Save.
         $script:NewWinOriginalName = [string]$Existing.WindowName
         $btnPickTargetColl.IsEnabled = $false
@@ -1263,7 +1263,7 @@ function Show-NewWindowDialog {
             if ($isEdit) {
                 $original = [string]$script:NewWinOriginalName
                 if ($original -and $original -ne $name) {
-                    # Rename: MECM keys windows by name, so a rename is delete + recreate.
+                    # Rename: ConfigMgr keys windows by name, so a rename is delete + recreate.
                     Add-LogLine ('Renaming "{0}" -> "{1}" on {2} (delete + recreate)' -f $original, $name, $coll.Name)
                     $removed = Remove-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $original
                     if (-not $removed) { Add-LogLine 'Rename aborted: failed to remove the old window.'; return }
@@ -1826,7 +1826,7 @@ function Show-OptionsDialog {
         <Border Grid.Column="1" Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
         <Grid Grid.Column="2" Grid.Row="0" Margin="20,16,20,16">
             <StackPanel x:Name="paneConnection" Visibility="Visible">
-                <TextBlock Text="MECM Connection" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <TextBlock Text="Site Code" FontSize="11" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtSiteCode" FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. MCM" Width="120" HorizontalAlignment="Left"/>
@@ -1840,7 +1840,7 @@ function Show-OptionsDialog {
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
                 <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="SemiBold"/>
-                <TextBlock Text="Browse, create, edit, toggle, and bulk-apply MECM maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
+                <TextBlock Text="Browse, create, edit, toggle, and bulk-apply Configuration Manager maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."
                            FontSize="11" Margin="0,16,0,0" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>

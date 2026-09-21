@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D4)](#requirements)
 [![License](https://img.shields.io/github/license/jasonulbright/maintenance-window-manager)](LICENSE)
 
-A MahApps.Metro WPF GUI for auditing, creating, editing, and bulk-applying MECM device collection maintenance windows. The MECM console buries maintenance windows deep in individual collection properties; this tool gives you a single-pane view of every window in the environment with full CRUD, schedule editing, templates, and gap analysis.
+Audit, create, edit, and bulk-apply Configuration Manager device collection maintenance windows. The Configuration Manager console buries maintenance windows deep in individual collection properties; this tool gives you a single-pane view of every window in the environment with full CRUD, schedule editing, templates, and gap analysis.
 
 ![Maintenance Window Manager](screenshot.png)
 
@@ -15,7 +15,7 @@ A MahApps.Metro WPF GUI for auditing, creating, editing, and bulk-applying MECM 
 - PowerShell 5.1
 - .NET Framework 4.7.2+
 - Configuration Manager console installed (provides the `ConfigurationManager` PowerShell module)
-- MECM RBAC rights to read and modify collections and maintenance windows
+- Configuration Manager RBAC rights to read and modify collections and maintenance windows
 
 ## Quick Start
 
@@ -63,7 +63,7 @@ Subpanels appear/disappear with the recurrence choice. The **Next 5 occurrences*
 
 1. Pick the window in the **Windows** grid -> **Edit...**
 2. Adjust name, type, enabled, or any schedule field.
-3. If you rename, the app issues delete + recreate (MECM keys windows by name); same-name edits use the cheaper Set path.
+3. If you rename, the app issues delete + recreate (Configuration Manager keys windows by name); same-name edits use the cheaper Set path.
 
 ### Roll a template out to many collections
 
@@ -99,7 +99,7 @@ maintenance-window-manager/
 - Built-in collections (SMS prefix) are filtered out of target pickers so you can't accidentally apply a window to system collections.
 - Confirmation dialogs before every destructive operation (window removal, template deletion).
 - Rename = delete + recreate. The app logs the original name before deletion so you can recover the spec from the session log if the recreate fails.
-- All MECM data access uses supported ConfigurationManager PowerShell cmdlets (Get-CMDeviceCollection, Get-CMMaintenanceWindow, New-CMMaintenanceWindow, Set-CMMaintenanceWindow, Remove-CMMaintenanceWindow). No direct WMI queries.
+- All Configuration Manager data access uses supported ConfigurationManager PowerShell cmdlets (Get-CMDeviceCollection, Get-CMMaintenanceWindow, New-CMMaintenanceWindow, Set-CMMaintenanceWindow, Remove-CMMaintenanceWindow). No direct WMI queries.
 
 ## License
 

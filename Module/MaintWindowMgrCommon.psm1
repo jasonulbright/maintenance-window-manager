@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Core module for MECM Maintenance Window Manager.
+    Core module for Maintenance Window Manager.
 
 .DESCRIPTION
     Import this module to get:

@@ -224,7 +224,7 @@
                             Content="Refresh"
                             Style="{StaticResource SquareInlineButtonStyle}"
                             MinWidth="120"
-                            ToolTip="Reload from MECM (or, on the Templates view, reload templates from disk)"/>
+                            ToolTip="Reload from Configuration Manager (or, on the Templates view, reload templates from disk)"/>
 
                     <TextBox x:Name="txtFilter"
                              Grid.Column="1"

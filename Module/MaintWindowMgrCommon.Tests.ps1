@@ -8,7 +8,7 @@
     Covers pure-logic exports: logging, schedule helpers (Patch Tuesday math),
     coverage calculations, schedule formatting, occurrence prediction, and
     template I/O. CM-cmdlet integration (Connect-CMSite, Get-AllMaintenanceWindows,
-    New-ManagedMaintenanceWindow, etc.) requires a live MECM site and is
+    New-ManagedMaintenanceWindow, etc.) requires a live ConfigMgr site and is
     verified end-to-end on a CM-console-equipped client (CLIENT01) rather
     than mocked here.
 
