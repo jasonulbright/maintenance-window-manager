@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026.10.11.0010] - 2026-10-11
+
+## 1 suite update notice
+
+### Added
+
+- Show a notice when a newer suite release is available; the launcher installs it.
+
 All notable changes to Maintenance Window Manager are documented in this
 file.
 
