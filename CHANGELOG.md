@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026.10.25.0013] - 2026-10-25
+
+## 1 fix
+
+### Fixed
+
+- Fix the collection picker returning a selection when closed with X.
+
 ## [2026.10.12.0012] - 2026-10-12
 
 ## 1 PowerShell 7 fix
