@@ -50,5 +50,5 @@
 
     CmdletsToExport   = @()
     VariablesToExport  = @()
-    AliasesToExport    = @()
+    AliasesToExport    = @('Apply-WindowTemplate')
 }
