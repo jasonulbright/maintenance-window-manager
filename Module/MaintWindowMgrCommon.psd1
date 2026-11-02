@@ -36,7 +36,7 @@
         'Get-WindowTemplates'
         'Save-WindowTemplate'
         'Remove-WindowTemplate'
-        'Apply-WindowTemplate'
+        'New-WindowFromTemplate'
 
         # Bulk Operations
         'Import-MaintenanceWindowsCsv'
@@ -50,5 +50,5 @@
 
     CmdletsToExport   = @()
     VariablesToExport  = @()
-    AliasesToExport    = @()
+    AliasesToExport    = @('Apply-WindowTemplate')
 }
