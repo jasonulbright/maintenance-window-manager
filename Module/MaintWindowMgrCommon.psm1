@@ -396,7 +396,6 @@ function Get-NextOccurrences {
         }
         5 {
             # Monthly by date
-            $targetDay = $startTime.Day
             $candidate = $startTime
             while ($candidate -le $now) { $candidate = $candidate.AddMonths(1) }
             for ($i = 0; $i -lt $Count; $i++) {
