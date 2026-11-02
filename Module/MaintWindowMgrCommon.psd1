@@ -36,7 +36,7 @@
         'Get-WindowTemplates'
         'Save-WindowTemplate'
         'Remove-WindowTemplate'
-        'Apply-WindowTemplate'
+        'New-WindowFromTemplate'
 
         # Bulk Operations
         'Import-MaintenanceWindowsCsv'

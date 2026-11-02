@@ -792,7 +792,7 @@ function Remove-WindowTemplate {
     return $false
 }
 
-function Apply-WindowTemplate {
+function New-WindowFromTemplate {
     <#
     .SYNOPSIS
         Creates a maintenance window on each target collection from a template.
