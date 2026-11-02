@@ -1640,7 +1640,7 @@ function Show-ApplyTemplateDialog {
                 TargetCollections = @($script:ApplyTargets)
             }
             if ($override) { $applyParams['WindowNameOverride'] = $override }
-            $results = @(Apply-WindowTemplate @applyParams)
+            $results = @(New-WindowFromTemplate @applyParams)
             $okCount  = @($results | Where-Object { $_.Success }).Count
             $failCount = @($results | Where-Object { -not $_.Success }).Count
             Add-LogLine ('Apply Template "{0}": {1} succeeded, {2} failed.' -f $tpl.Name, $okCount, $failCount)

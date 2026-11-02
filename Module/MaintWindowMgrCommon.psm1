@@ -792,7 +792,7 @@ function Remove-WindowTemplate {
     return $false
 }
 
-function Apply-WindowTemplate {
+function New-WindowFromTemplate {
     <#
     .SYNOPSIS
         Creates a maintenance window on each target collection from a template.
@@ -1132,3 +1132,6 @@ function Export-MaintenanceWindowsHtml {
     Set-Content -LiteralPath $OutputPath -Value $html -Encoding UTF8
     Write-Log "Exported HTML to $OutputPath"
 }
+
+# Keeps the previous name working for callers outside this repository.
+Set-Alias -Name 'Apply-WindowTemplate' -Value 'New-WindowFromTemplate'
