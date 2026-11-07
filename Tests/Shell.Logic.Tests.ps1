@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 # Logic of start-maintenancewindowmgr.ps1. The script cannot be dot-sourced (it opens
 # the window), so each function is cut out of its syntax tree and defined here,
 # with plain objects in place of the window controls.
@@ -9,7 +9,7 @@ BeforeAll {
     $script:ShellPath = Join-Path $script:AppRoot 'start-maintenancewindowmgr.ps1'
     $script:Ast = [System.Management.Automation.Language.Parser]::ParseFile($script:ShellPath, [ref]$null, [ref]$null)
     $wanted = 'Get-MwmPreferences', 'Save-MwmPreferences', 'Get-WindowStatusGlyph', 'Get-CoverageGlyph', 'Get-StatusFilterValue',
-        'Update-Filter', 'Set-StatusText', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt'
+        'Update-Filter', 'Set-StatusText', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt', 'Get-PreviewStartDateTime'
     foreach ($n in $wanted) {
         $def = $script:Ast.Find({ param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $n }, $true)
         if (-not $def) { throw "function $n not found in the script" }
@@ -199,5 +199,37 @@ Describe 'Script contract' {
         Import-Module (Join-Path $script:AppRoot 'Lib\SuiteCommon\SuiteCommon.psd1') -Global -DisableNameChecking -ErrorAction SilentlyContinue
         $missing = @($called | Where-Object { $_ -notin $own -and -not (Get-Command $_ -ErrorAction SilentlyContinue) })
         $missing | Where-Object { $_ -notmatch '^(Get|Set|New|Remove|Start|Invoke|Add|Copy|Convert)-CM' } | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-PreviewStartDateTime' {
+    BeforeAll {
+        function New-State { param($Recurrence, $Dow = 'Tuesday', $Wo = 'Second', $Dom = 1) @{ Recurrence = $Recurrence; StartDate = [datetime]'2026-11-07'; Hour = 2; Minute = 30; DayOfWeek = $Dow; WeekOrder = $Wo; DayOfMonth = $Dom } }
+    }
+
+    It 'moves a weekly schedule to the selected day of week, not the weekday of the start date' {
+        # 2026-11-07 is a Saturday. The editor shows Tuesday.
+        (Get-PreviewStartDateTime -State (New-State 'Weekly' 'Tuesday')).ToString('yyyy-MM-dd ddd HH:mm') | Should -Be '2026-11-10 Tue 02:30'
+    }
+
+    It 'keeps the start date when it already has the selected day of week' {
+        (Get-PreviewStartDateTime -State (New-State 'Weekly' 'Saturday')).ToString('yyyy-MM-dd') | Should -Be '2026-11-07'
+    }
+
+    It 'uses the selected day of the month for a monthly by date schedule' {
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByDate' -Dom 15)).ToString('yyyy-MM-dd') | Should -Be '2026-11-15'
+    }
+
+    It 'cuts the day of the month to the last day of a short month' {
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByDate' -Dom 31)).ToString('yyyy-MM-dd') | Should -Be '2026-11-30'
+    }
+
+    It 'uses the selected week order and day of week for a monthly by weekday schedule' {
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByWeekday' 'Tuesday' 'Second')).ToString('yyyy-MM-dd') | Should -Be '2026-11-10'
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByWeekday' 'Friday' 'Last')).ToString('yyyy-MM-dd') | Should -Be '2026-11-27'
+    }
+
+    It 'leaves a daily schedule on the start date' {
+        (Get-PreviewStartDateTime -State (New-State 'Daily')).ToString('yyyy-MM-dd HH:mm') | Should -Be '2026-11-07 02:30'
     }
 }

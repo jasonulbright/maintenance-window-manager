@@ -19,7 +19,7 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 2026.11.06.0014
+    Version    : 2026.11.07.0015
     Updated    : 2026-11-06
 #>
 
@@ -252,7 +252,7 @@ $toggleTheme.Add_Toggled({
 # View switching.
 # =============================================================================
 $script:ViewMeta = @{
-    'Windows'   = @{ Title = 'Windows';   Subtitle = 'Every maintenance window across every device collection. Configure Site / Provider in Options, then click Refresh.' }
+    'Windows'   = @{ Title = 'Windows';   Subtitle = 'Every maintenance window across every device collection.' }
     'Coverage'  = @{ Title = 'Coverage';  Subtitle = 'Which collections have / lack maintenance windows -- gap remediation. Multi-select rows for bulk apply.' }
     'Templates' = @{ Title = 'Templates'; Subtitle = 'Saved schedule templates. Apply one to a target collection or to many collections at once from the Coverage view.' }
 }
@@ -977,6 +977,41 @@ function Set-ScheduleEditorState {
     Update-ScheduleEditorVisibility -Dialog $Dialog
 }
 
+function Get-PreviewStartDateTime {
+    <#
+    .SYNOPSIS
+        The first occurrence that the schedule editor settings describe, for the preview.
+    .DESCRIPTION
+        Get-NextOccurrences reads only the start time of a window. The editor also has a day of week,
+        a week order and a day of month. Without them the preview showed the weekday of the start date
+        while the window that the tool creates fires on the selected day.
+    #>
+    param([Parameter(Mandatory)][hashtable]$State)
+    $date = $State.StartDate
+    $start = [datetime]::new($date.Year, $date.Month, $date.Day, $State.Hour, $State.Minute, 0)
+    switch ($State.Recurrence) {
+        'Weekly' {
+            $target = [System.DayOfWeek]$State.DayOfWeek
+            while ($start.DayOfWeek -ne $target) { $start = $start.AddDays(1) }
+        }
+        'MonthlyByDate' {
+            $day = [math]::Min([int]$State.DayOfMonth, [datetime]::DaysInMonth($date.Year, $date.Month))
+            $start = [datetime]::new($date.Year, $date.Month, $day, $State.Hour, $State.Minute, 0)
+        }
+        'MonthlyByWeekday' {
+            $target = [System.DayOfWeek]$State.DayOfWeek
+            $first = [datetime]::new($date.Year, $date.Month, 1, $State.Hour, $State.Minute, 0)
+            while ($first.DayOfWeek -ne $target) { $first = $first.AddDays(1) }
+            $index = switch ([string]$State.WeekOrder) { 'First' { 0 } 'Second' { 1 } 'Third' { 2 } 'Fourth' { 3 } default { -1 } }
+            if ($index -ge 0) { $start = $first.AddDays(7 * $index) }
+            else {
+                $start = $first
+                while ($start.AddDays(7).Month -eq $first.Month) { $start = $start.AddDays(7) }
+            }
+        }
+    }
+    return $start
+}
 function Update-SchedulePreview {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates the in-window preview TextBlock only.')]
     param([System.Windows.Window]$Dialog)
@@ -986,7 +1021,7 @@ function Update-SchedulePreview {
     if (-not $tx) { return }
     try {
         $st = Get-ScheduleEditorState -Dialog $Dialog
-        $startDt = [datetime]::new($st.StartDate.Year, $st.StartDate.Month, $st.StartDate.Day, $st.Hour, $st.Minute, 0)
+        $startDt = Get-PreviewStartDateTime -State $st
 
         # For PatchTuesday we shift the start date to the actual second-Tuesday + offset of this month.
         if ($st.Recurrence -eq 'PatchTuesday') {
@@ -1246,7 +1281,7 @@ function Show-NewWindowDialog {
         if (-not $name) { Add-LogLine 'Validation: window name required.'; return }
 
         $st = Get-ScheduleEditorState -Dialog $dlg
-        $startDt = [datetime]::new($st.StartDate.Year, $st.StartDate.Month, $st.StartDate.Day, $st.Hour, $st.Minute, 0)
+        $startDt = Get-PreviewStartDateTime -State $st
         $applyTo = if ($cboWindowType.SelectedItem) { [string]$cboWindowType.SelectedItem.Content } else { 'Any' }
         $isEnabled = [bool]$chkWindowEnabled.IsChecked
 
