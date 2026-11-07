@@ -1,5 +1,16 @@
 # Changelog
 
+## [2026.11.07.0017] - 2026-11-07
+
+## 1 opt-in decides whether window tests run
+
+### Changed
+
+- Run window tests only when the SUITE_ALLOW_WINDOW_TESTS opt-in is set.
+- Remove the ComputerName parameter from Test-WindowTestsAllowed.
+- Print one skip line from Invoke-Checks.ps1 when the opt-in is not 1.
+- Check each top-level Describe from the syntax tree in WindowGuard.Tests.ps1.
+
 ## [2026.11.07.0016] - 2026-11-07
 
 ## 1 shared library refresh and window tests that cannot steal focus

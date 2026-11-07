@@ -41,15 +41,14 @@ $failed = $false
 Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop
 
 # ---- Window test guard -----------------------------------------------------
-# Window tests open a window only when SUITE_ALLOW_WINDOW_TESTS is 1, and never on the dev PC.
+# Window tests open a window only when SUITE_ALLOW_WINDOW_TESTS is 1.
 # When they are skipped, Pester reports them as Skipped. This script prints one line and passes.
 # The coverage floor does not depend on them: they run no module code.
 . (Join-Path $root 'Tests\WindowHarness.ps1')
 $windowSkipReported = $false
 $windowGuard = Test-WindowTestsAllowed
 if (-not $SkipWindow -and -not $windowGuard.Allowed) {
-    if ($windowGuard.Reason -like 'dev PC*') { Write-Host 'Window tests skipped: dev PC (AYW). Run them on CM01/CLIENT01 or in CI.' }
-    else { Write-Host 'Window tests skipped: SUITE_ALLOW_WINDOW_TESTS is not 1.' }
+    Write-Host 'Window tests skipped: SUITE_ALLOW_WINDOW_TESTS is not 1.'
     $windowSkipReported = $true
 }
 
