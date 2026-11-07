@@ -242,10 +242,12 @@ function Get-CollectionsWithoutWindows {
     param(
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
+        [AllowNull()]
         [array]$AllCollections,
 
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
+        [AllowNull()]
         [array]$AllWindows
     )
 
@@ -419,7 +421,9 @@ function New-ManagedMaintenanceWindow {
     <#
     .SYNOPSIS
         Creates a maintenance window on a collection with validation and logging.
+        Returns the new window, or $null when it did not create one (error, empty name, -WhatIf).
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$CollectionId,
         [Parameter(Mandatory)][string]$Name,
@@ -435,6 +439,7 @@ function New-ManagedMaintenanceWindow {
         return $null
     }
 
+    if (-not $PSCmdlet.ShouldProcess($CollectionId, "Create maintenance window '$Name'")) { return $null }
     Write-Log "Creating maintenance window '$Name' on collection $CollectionId (ApplyTo=$ApplyTo, UTC=$IsUtc)"
 
     try {
@@ -462,7 +467,9 @@ function Set-ManagedMaintenanceWindow {
     <#
     .SYNOPSIS
         Updates an existing maintenance window with before/after logging.
+        Returns $true when it updated the window, $false on an error or under -WhatIf.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$CollectionId,
         [Parameter(Mandatory)][string]$MaintenanceWindowName,
@@ -472,6 +479,7 @@ function Set-ManagedMaintenanceWindow {
         [object]$IsUtc
     )
 
+    if (-not $PSCmdlet.ShouldProcess($CollectionId, "Update maintenance window '$MaintenanceWindowName'")) { return $false }
     Write-Log "Updating maintenance window '$MaintenanceWindowName' on collection $CollectionId"
 
     try {
@@ -500,12 +508,15 @@ function Remove-ManagedMaintenanceWindow {
     <#
     .SYNOPSIS
         Removes a maintenance window with confirmation logging.
+        Returns $true when it removed the window, $false on an error or under -WhatIf.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$CollectionId,
         [Parameter(Mandatory)][string]$MaintenanceWindowName
     )
 
+    if (-not $PSCmdlet.ShouldProcess($CollectionId, "Remove maintenance window '$MaintenanceWindowName'")) { return $false }
     Write-Log "Removing maintenance window '$MaintenanceWindowName' from collection $CollectionId"
 
     try {
@@ -544,6 +555,11 @@ function New-WindowSchedule {
         Day of month for MonthlyByDate (1-31).
     .PARAMETER RecurCount
         Recurrence interval (every N days/weeks). Default 1.
+    .DESCRIPTION
+        The duration is DurationHours and DurationMinutes together. A duration
+        of 1 hour 30 minutes is one hour in the cmdlet call, and the schedule
+        object then gets 30 minutes. The function returns $null when the total is not between 1 minute and
+        23 hours 59 minutes, when a part is negative, or when the cmdlet fails.
     #>
     param(
         [Parameter(Mandatory)]
@@ -561,29 +577,28 @@ function New-WindowSchedule {
         [int]$RecurCount = 1
     )
 
+    if ($DurationHours -lt 0 -or $DurationMinutes -lt 0) {
+        Write-Log "Duration cannot be negative" -Level ERROR
+        return $null
+    }
     $totalMinutes = ($DurationHours * 60) + $DurationMinutes
     if ($totalMinutes -le 0 -or $totalMinutes -ge 1440) {
         Write-Log "Duration must be between 1 minute and 23 hours 59 minutes" -Level ERROR
         return $null
     }
 
+    # New-CMSchedule takes one duration unit. A count of minutes above 59 is not valid: the site
+    # stores 90 minutes as 60 (checked on CM01). So the duration is split into whole hours and
+    # minutes. With hours, the cmdlet gets the hours and the minutes are set on the schedule
+    # object afterwards. Without hours, the cmdlet gets the minutes.
+    $wholeHours = [int][math]::Floor($totalMinutes / 60)
+    $extraMinutes = $totalMinutes % 60
     $baseParams = @{
         Start             = $StartTime
-        DurationInterval  = 'Hours'
-        DurationCount     = $DurationHours
+        DurationInterval  = if ($wholeHours -gt 0) { 'Hours' } else { 'Minutes' }
+        DurationCount     = if ($wholeHours -gt 0) { $wholeHours } else { $extraMinutes }
         ErrorAction       = 'Stop'
     }
-
-    # Handle minutes-only or mixed duration
-    if ($DurationMinutes -gt 0 -and $DurationHours -eq 0) {
-        $baseParams['DurationInterval'] = 'Minutes'
-        $baseParams['DurationCount']    = $DurationMinutes
-    }
-    elseif ($DurationMinutes -gt 0) {
-        # CM schedule duration is limited; set hours and note minutes are approximate
-        $baseParams['DurationCount'] = $DurationHours
-    }
-
     try {
         switch ($RecurrenceType) {
             'OneTime' {
@@ -602,6 +617,8 @@ function New-WindowSchedule {
                 $schedule = New-CMSchedule @baseParams -DayOfWeek $DayOfWeek -WeekOrder $WeekOrder
             }
         }
+
+        if ($wholeHours -gt 0 -and $extraMinutes -gt 0) { $schedule.MinuteDuration = $extraMinutes }
 
         Write-Log "Created schedule: $RecurrenceType, Start=$($StartTime.ToString('yyyy-MM-dd HH:mm')), Duration=${DurationHours}h${DurationMinutes}m" -Quiet
         return $schedule
@@ -710,7 +727,9 @@ function Get-WindowTemplates {
 
     foreach ($f in $jsonFiles) {
         try {
-            $tmpl = Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json
+            # -Encoding UTF8: Windows PowerShell 5.1 decodes a file without a byte order mark as ANSI.
+            $tmpl = Get-Content -LiteralPath $f.FullName -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+            if ($null -eq $tmpl) { throw 'the file is empty' }
             $tmpl | Add-Member -NotePropertyName 'FileName' -NotePropertyValue $f.Name -Force
             $tmpl | Add-Member -NotePropertyName 'FilePath' -NotePropertyValue $f.FullName -Force
             $templates += $tmpl
@@ -726,8 +745,16 @@ function Get-WindowTemplates {
 function Save-WindowTemplate {
     <#
     .SYNOPSIS
-        Saves a maintenance window template to JSON.
+        Saves a maintenance window template to JSON and returns the file path.
+    .DESCRIPTION
+        The file name comes from the template name. Saving a template with the
+        same name replaces its file. A different name that gives the same file
+        name (for example 'Patch + 7' and 'Patch - 7') gets a numbered file
+        name instead of replacing the other template. A name that Windows
+        reserves for a device (CON, NUL, COM1 and so on) gets a leading
+        underscore. Returns $null under -WhatIf.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$TemplatesPath,
         [Parameter(Mandatory)][string]$Name,
@@ -746,10 +773,6 @@ function Save-WindowTemplate {
         [int]$PatchTuesdayOffset = -1
     )
 
-    if (-not (Test-Path -LiteralPath $TemplatesPath)) {
-        New-Item -ItemType Directory -Path $TemplatesPath -Force | Out-Null
-    }
-
     $template = [ordered]@{
         Name              = $Name
         Description       = $Description
@@ -767,8 +790,26 @@ function Save-WindowTemplate {
         PatchTuesdayOffset = $PatchTuesdayOffset
     }
 
-    $fileName = ($Name -replace '[^\w\-]', '-').ToLower() + '.json'
+    $baseName = ($Name -replace '[^\w\-]', '-').ToLower()
+    if ($baseName -match '^(con|prn|aux|nul|com[0-9]|lpt[0-9])$') { $baseName = "_$baseName" }
+
+    if (-not $PSCmdlet.ShouldProcess($Name, "Save template to $TemplatesPath")) { return $null }
+
+    if (-not (Test-Path -LiteralPath $TemplatesPath)) {
+        New-Item -ItemType Directory -Path $TemplatesPath -Force | Out-Null
+    }
+
+    $fileName = "$baseName.json"
     $filePath = Join-Path $TemplatesPath $fileName
+    $suffix = 1
+    while (Test-Path -LiteralPath $filePath) {
+        $existingName = $null
+        try { $existingName = [string](Get-Content -LiteralPath $filePath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop).Name } catch { $existingName = $null }
+        if ($existingName -ieq $Name) { break }
+        $suffix++
+        $fileName = "$baseName-$suffix.json"
+        $filePath = Join-Path $TemplatesPath $fileName
+    }
 
     $template | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $filePath -Encoding UTF8
     Write-Log "Saved template '$Name' to $fileName"
@@ -779,12 +820,21 @@ function Remove-WindowTemplate {
     <#
     .SYNOPSIS
         Deletes a template JSON file.
+        Returns $true when it deleted the file. Returns $false when the file does not
+        exist, is not a .json file, or under -WhatIf.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$FilePath
     )
 
-    if (Test-Path -LiteralPath $FilePath) {
+    if ([System.IO.Path]::GetExtension($FilePath) -ne '.json') {
+        Write-Log "Refused to remove a file that is not a template (.json): $FilePath" -Level WARN
+        return $false
+    }
+
+    if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
+        if (-not $PSCmdlet.ShouldProcess($FilePath, 'Remove template file')) { return $false }
         Remove-Item -LiteralPath $FilePath -Force
         Write-Log "Removed template: $FilePath"
         return $true
@@ -797,8 +847,10 @@ function New-WindowFromTemplate {
     .SYNOPSIS
         Creates a maintenance window on each target collection from a template.
     .RETURNS
-        Array of PSCustomObjects with CollectionId, CollectionName, Success, Error properties.
+        Array of PSCustomObjects with CollectionID, CollectionName, Success, Error properties.
+        Under -WhatIf a collection that is not processed has no result.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]$Template,
         [Parameter(Mandatory)][array]$TargetCollections,
@@ -847,6 +899,7 @@ function New-WindowFromTemplate {
         $collId   = if ($coll.CollectionID) { $coll.CollectionID } else { $coll }
         $collName = if ($coll.Name) { $coll.Name } else { $collId }
 
+        if (-not $PSCmdlet.ShouldProcess($collId, "Create maintenance window '$windowName' from template")) { continue }
         try {
             $result = New-ManagedMaintenanceWindow -CollectionId $collId -Name $windowName `
                 -Schedule $schedule -ApplyTo $applyTo -IsEnabled $true -IsUtc ([bool]$Template.IsUtc)
@@ -885,6 +938,12 @@ function Import-MaintenanceWindowsCsv {
         Expected CSV columns: CollectionID (or CollectionName), WindowName, RecurrenceType,
         StartHour, StartMinute, DurationHours, DurationMinutes, WindowType, DayOfWeek,
         WeekOrder, DayOfMonth, RecurCount, IsUtc
+
+        Every row gets Valid and Error. A row is not valid when it names no collection,
+        when a number is not a number or out of range, or when a name (recurrence type,
+        window type, day of week, week order) is not one of the known values. Error lists
+        every problem of the row. The function reads the whole file and does not throw for
+        a bad row.
     #>
     param(
         [Parameter(Mandatory)][string]$CsvPath
@@ -895,27 +954,61 @@ function Import-MaintenanceWindowsCsv {
         return @()
     }
 
-    $rows = Import-Csv -LiteralPath $CsvPath -ErrorAction Stop
+    $rows = Import-Csv -LiteralPath $CsvPath -Encoding UTF8 -ErrorAction Stop
     Write-Log "Parsed $(@($rows).Count) rows from CSV"
 
+    $recurrenceTypes = 'OneTime', 'Daily', 'Weekly', 'MonthlyByDate', 'MonthlyByWeekday'
+    $windowTypes = 'Any', 'SoftwareUpdatesOnly', 'TaskSequencesOnly'
+    $weekOrders = 'First', 'Second', 'Third', 'Fourth', 'Last'
+    $days = [enum]::GetNames([System.DayOfWeek])
+
     $preview = foreach ($row in $rows) {
+        $problems = [System.Collections.Generic.List[string]]::new()
+        $num = {
+            param([string]$Field, $Raw, [int]$Default, [int]$Min, [int]$Max)
+            if ($null -eq $Raw -or [string]::IsNullOrWhiteSpace([string]$Raw)) { return $Default }
+            $n = 0
+            if (-not [int]::TryParse(([string]$Raw).Trim(), [ref]$n)) { $problems.Add("$Field '$Raw' is not a number"); return $Default }
+            if ($n -lt $Min -or $n -gt $Max) { $problems.Add("$Field $n is not between $Min and $Max"); return $Default }
+            return $n
+        }
+        $pick = {
+            param([string]$Field, $Raw, [string]$Default, [string[]]$Allowed)
+            if ($null -eq $Raw -or [string]::IsNullOrWhiteSpace([string]$Raw)) { return $Default }
+            $match = $Allowed | Where-Object { $_ -ieq ([string]$Raw).Trim() } | Select-Object -First 1
+            if (-not $match) { $problems.Add("$Field '$Raw' is not one of: $($Allowed -join ', ')"); return $Default }
+            return $match
+        }
+
+        $collId = if ($row.CollectionID) { ([string]$row.CollectionID).Trim() } else { '' }
+        $collName = if ($row.CollectionName) { ([string]$row.CollectionName).Trim() } else { '' }
+        if (-not $collId -and -not $collName) { $problems.Add('CollectionID or CollectionName is required') }
+
+        $startHour = & $num 'StartHour' $row.StartHour 2 0 23
+        $startMinute = & $num 'StartMinute' $row.StartMinute 0 0 59
+        $durHours = & $num 'DurationHours' $row.DurationHours 4 0 23
+        $durMinutes = & $num 'DurationMinutes' $row.DurationMinutes 0 0 59
+        if ((($durHours * 60) + $durMinutes) -le 0) { $problems.Add('The duration must be at least 1 minute') }
+        $dayOfMonth = & $num 'DayOfMonth' $row.DayOfMonth 1 1 31
+        $recurCount = & $num 'RecurCount' $row.RecurCount 1 1 99
+
         [PSCustomObject]@{
-            CollectionID    = if ($row.CollectionID) { $row.CollectionID } else { '' }
-            CollectionName  = if ($row.CollectionName) { $row.CollectionName } else { '' }
+            CollectionID    = $collId
+            CollectionName  = $collName
             WindowName      = if ($row.WindowName) { $row.WindowName } else { 'Maintenance Window' }
-            RecurrenceType  = if ($row.RecurrenceType) { $row.RecurrenceType } else { 'Weekly' }
-            StartHour       = if ($row.StartHour) { [int]$row.StartHour } else { 2 }
-            StartMinute     = if ($row.StartMinute) { [int]$row.StartMinute } else { 0 }
-            DurationHours   = if ($row.DurationHours) { [int]$row.DurationHours } else { 4 }
-            DurationMinutes = if ($row.DurationMinutes) { [int]$row.DurationMinutes } else { 0 }
-            WindowType      = if ($row.WindowType) { $row.WindowType } else { 'Any' }
-            DayOfWeek       = if ($row.DayOfWeek) { $row.DayOfWeek } else { 'Sunday' }
-            WeekOrder       = if ($row.WeekOrder) { $row.WeekOrder } else { 'First' }
-            DayOfMonth      = if ($row.DayOfMonth) { [int]$row.DayOfMonth } else { 1 }
-            RecurCount      = if ($row.RecurCount) { [int]$row.RecurCount } else { 1 }
+            RecurrenceType  = & $pick 'RecurrenceType' $row.RecurrenceType 'Weekly' $recurrenceTypes
+            StartHour       = $startHour
+            StartMinute     = $startMinute
+            DurationHours   = $durHours
+            DurationMinutes = $durMinutes
+            WindowType      = & $pick 'WindowType' $row.WindowType 'Any' $windowTypes
+            DayOfWeek       = & $pick 'DayOfWeek' $row.DayOfWeek 'Sunday' $days
+            WeekOrder       = & $pick 'WeekOrder' $row.WeekOrder 'First' $weekOrders
+            DayOfMonth      = $dayOfMonth
+            RecurCount      = $recurCount
             IsUtc           = if ($row.IsUtc) { [bool]($row.IsUtc -eq 'true' -or $row.IsUtc -eq '1') } else { $false }
-            Valid           = $true
-            Error           = ''
+            Valid           = ($problems.Count -eq 0)
+            Error           = ($problems -join '; ')
         }
     }
 
@@ -926,7 +1019,10 @@ function Copy-MaintenanceWindowToCollections {
     <#
     .SYNOPSIS
         Copies a maintenance window from one collection to multiple target collections.
+        Returns one result (CollectionID, Success, Error) per target. Under -WhatIf a target
+        that is not processed has no result.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)][string]$SourceCollectionId,
         [Parameter(Mandatory)][string]$SourceWindowName,
@@ -946,6 +1042,7 @@ function Copy-MaintenanceWindowToCollections {
     $results = [System.Collections.ArrayList]::new()
 
     foreach ($targetId in $TargetCollectionIds) {
+        if (-not $PSCmdlet.ShouldProcess($targetId, "Copy maintenance window '$SourceWindowName'")) { continue }
         try {
             # Re-create the schedule from the source window's schedule string
             $schedule = Convert-CMSchedule -ScheduleString $srcWindow.ServiceWindowSchedules -ErrorAction Stop
@@ -990,9 +1087,12 @@ function Set-BulkWindowEnabled {
     <#
     .SYNOPSIS
         Enables or disables maintenance windows matching criteria across collections.
+        Returns one result (CollectionID, WindowName, Success, Error) per window. Under
+        -WhatIf a window that is not processed has no result.
     #>
+    [CmdletBinding(SupportsShouldProcess)]
     param(
-        [Parameter(Mandatory)][array]$WindowRecords,
+        [Parameter(Mandatory)][AllowEmptyCollection()][array]$WindowRecords,
         [Parameter(Mandatory)][bool]$Enabled
     )
 
@@ -1002,6 +1102,7 @@ function Set-BulkWindowEnabled {
     $results = [System.Collections.ArrayList]::new()
 
     foreach ($rec in $WindowRecords) {
+        if (-not $PSCmdlet.ShouldProcess("$($rec.CollectionID) / $($rec.WindowName)", $stateStr)) { continue }
         try {
             Set-CMMaintenanceWindow -CollectionId $rec.CollectionID `
                 -MaintenanceWindowName $rec.WindowName -IsEnabled $Enabled -ErrorAction Stop
@@ -1032,15 +1133,53 @@ function Set-BulkWindowEnabled {
 # Export
 # ---------------------------------------------------------------------------
 
+function ConvertTo-WindowDataTable {
+    <#
+    .SYNOPSIS
+        Builds a DataTable of text columns from window objects, for the export functions.
+    .DESCRIPTION
+        Columns names the columns and their order. Without Columns the table has the
+        columns of the Maintenance Windows grid. The column Enabled reads IsEnabled when the
+        object has no Enabled property. A missing property or a null value is an empty cell.
+    #>
+    param(
+        [AllowNull()][AllowEmptyCollection()][object[]]$Objects,
+        [string[]]$Columns
+    )
+    $items = @($Objects | Where-Object { $null -ne $_ })
+    if (-not $Columns -or $Columns.Count -eq 0) {
+        $Columns = 'CollectionName', 'CollectionID', 'WindowName', 'Type', 'Recurrence', 'Schedule', 'Duration', 'NextOccurrence', 'Enabled'
+    }
+    $table = New-Object System.Data.DataTable
+    foreach ($c in $Columns) { [void]$table.Columns.Add([string]$c, [string]) }
+    foreach ($item in $items) {
+        $row = $table.NewRow()
+        foreach ($c in $Columns) {
+            $p = $item.PSObject.Properties[$c]
+            if (-not $p -and $c -eq 'Enabled') { $p = $item.PSObject.Properties['IsEnabled'] }
+            $row[[string]$c] = if ($p -and $null -ne $p.Value) { [string]$p.Value } else { [DBNull]::Value }
+        }
+        [void]$table.Rows.Add($row)
+    }
+    return , $table
+}
+
 function Export-MaintenanceWindowsCsv {
     <#
     .SYNOPSIS
-        Exports a DataTable of maintenance windows to CSV.
+        Exports a DataTable, or window objects, to CSV.
+    .DESCRIPTION
+        Pass -DataTable, or pass -Windows with an optional -Columns list.
     #>
+    [CmdletBinding(DefaultParameterSetName = 'Table')]
     param(
-        [Parameter(Mandatory)][System.Data.DataTable]$DataTable,
+        [Parameter(Mandatory, ParameterSetName = 'Table')][System.Data.DataTable]$DataTable,
+        [Parameter(Mandatory, ParameterSetName = 'Objects')][AllowNull()][AllowEmptyCollection()][object[]]$Windows,
+        [Parameter(ParameterSetName = 'Objects')][string[]]$Columns,
         [Parameter(Mandatory)][string]$OutputPath
     )
+
+    if ($PSCmdlet.ParameterSetName -eq 'Objects') { $DataTable = ConvertTo-WindowDataTable -Objects $Windows -Columns $Columns }
 
     $parentDir = Split-Path -Path $OutputPath -Parent
     if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) {
@@ -1063,13 +1202,21 @@ function Export-MaintenanceWindowsCsv {
 function Export-MaintenanceWindowsHtml {
     <#
     .SYNOPSIS
-        Exports a DataTable of maintenance windows to a styled HTML report.
+        Exports a DataTable, or window objects, to a styled HTML report.
+    .DESCRIPTION
+        Pass -DataTable, or pass -Windows with an optional -Columns list. Every value, column
+        name and the title is HTML-encoded.
     #>
+    [CmdletBinding(DefaultParameterSetName = 'Table')]
     param(
-        [Parameter(Mandatory)][System.Data.DataTable]$DataTable,
+        [Parameter(Mandatory, ParameterSetName = 'Table')][System.Data.DataTable]$DataTable,
+        [Parameter(Mandatory, ParameterSetName = 'Objects')][AllowNull()][AllowEmptyCollection()][object[]]$Windows,
+        [Parameter(ParameterSetName = 'Objects')][string[]]$Columns,
         [Parameter(Mandatory)][string]$OutputPath,
         [string]$ReportTitle = 'Maintenance Windows Report'
     )
+
+    if ($PSCmdlet.ParameterSetName -eq 'Objects') { $DataTable = ConvertTo-WindowDataTable -Objects $Windows -Columns $Columns }
 
     $parentDir = Split-Path -Path $OutputPath -Parent
     if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) {
@@ -1093,7 +1240,9 @@ function Export-MaintenanceWindowsHtml {
         '</style>'
     ) -join "`r`n"
 
-    $headerRow = ($DataTable.Columns | ForEach-Object { "<th>$($_.ColumnName)</th>" }) -join ''
+    # HtmlEncode every site-derived string: names with angle brackets or ampersands
+    # otherwise corrupt the report markup.
+    $headerRow = ($DataTable.Columns | ForEach-Object { "<th>$([System.Net.WebUtility]::HtmlEncode($_.ColumnName))</th>" }) -join ''
 
     $bodyRows = foreach ($row in $DataTable.Rows) {
         $cells = foreach ($col in $DataTable.Columns) {
@@ -1112,17 +1261,17 @@ function Export-MaintenanceWindowsHtml {
                 $class = ' class="disabled"'
             }
 
-            "<td$class>$val</td>"
+            "<td$class>$([System.Net.WebUtility]::HtmlEncode($val))</td>"
         }
         "<tr>$($cells -join '')</tr>"
     }
 
     $html = @(
         '<!DOCTYPE html>',
-        '<html><head><meta charset="utf-8"><title>' + $ReportTitle + '</title>',
+        '<html><head><meta charset="utf-8"><title>' + [System.Net.WebUtility]::HtmlEncode($ReportTitle) + '</title>',
         $css,
         '</head><body>',
-        "<h1>$ReportTitle</h1>",
+        "<h1>$([System.Net.WebUtility]::HtmlEncode($ReportTitle))</h1>",
         "<div class='summary'>Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | Windows: $($DataTable.Rows.Count)</div>",
         "<table><thead><tr>$headerRow</tr></thead>",
         "<tbody>$($bodyRows -join "`r`n")</tbody></table>",

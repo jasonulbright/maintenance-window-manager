@@ -377,7 +377,7 @@
 
                     <DockPanel Grid.Column="2" Margin="8,0,0,0">
                         <Border DockPanel.Dock="Bottom" Padding="0,8,0,0">
-                            <StackPanel Orientation="Horizontal">
+                            <WrapPanel Orientation="Horizontal">
                                 <Button x:Name="btnNewTemplate"     Content="New Template..."   Style="{StaticResource SquareInlineButtonStyle}" MinWidth="140"
                                         ToolTip="Author a new schedule template"/>
                                 <Button x:Name="btnEditTemplate"    Content="Edit..."           Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
@@ -386,7 +386,7 @@
                                         ToolTip="Delete the selected template file"/>
                                 <Button x:Name="btnApplyTemplateOne" Content="Apply..."         Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
                                         ToolTip="Apply the selected template to one or more collections"/>
-                            </StackPanel>
+                            </WrapPanel>
                         </Border>
 
                         <StackPanel DockPanel.Dock="Top">
