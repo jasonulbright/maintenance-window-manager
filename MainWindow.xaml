@@ -133,6 +133,14 @@
                 <Setter Property="BorderThickness" Value="0"/>
                 <Setter Property="Padding" Value="8"/>
             </Style>
+            <Style x:Key="TabHeaderText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=TabItem}}" Value="True">
+                        <Setter Property="FontWeight" Value="Bold"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -201,7 +209,7 @@
                 <StackPanel>
                     <TextBlock x:Name="txtModuleTitle" Text="Windows" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="txtModuleSubtitle"
-                               Text="Configure Site / Provider in Options, then click Refresh."
+                               Text="Every maintenance window across every device collection."
                                FontSize="11"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource MahApps.Brushes.Gray1}"
@@ -301,13 +309,13 @@
                             </StackPanel>
                         </Border>
 
-                        <TabControl Grid.Row="1" BorderThickness="0"
+                        <TabControl Controls:HeaderedControlHelper.HeaderFontSize="13" Grid.Row="1" BorderThickness="0"
                                     Background="{DynamicResource MahApps.Brushes.ThemeBackground}">
-                            <TabItem Header="Properties">
+                            <TabItem><TabItem.Header><TextBlock Text="Properties" Style="{StaticResource TabHeaderText}" Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/></TabItem.Header>
                                 <TextBox x:Name="txtWindowProperties" Style="{StaticResource DetailTextStyle}"
                                          Text="Select a maintenance window to see its properties."/>
                             </TabItem>
-                            <TabItem Header="Next 5 occurrences">
+                            <TabItem><TabItem.Header><TextBlock Text="Next 5 occurrences" Style="{StaticResource TabHeaderText}" Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/></TabItem.Header>
                                 <TextBox x:Name="txtNextOccurrences" Style="{StaticResource DetailTextStyle}"
                                          Text="Select a maintenance window to project its next occurrences."/>
                             </TabItem>
