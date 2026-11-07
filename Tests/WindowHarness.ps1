@@ -22,7 +22,7 @@ $script:HarnessSession = $null
 function Test-WindowTestsAllowed {
     [CmdletBinding()]
     param(
-        [string]$ComputerName = $env:COMPUTERNAME,
+        [string]$ComputerName = [Environment]::MachineName,
         [string]$OptIn = $env:SUITE_ALLOW_WINDOW_TESTS
     )
     if ($ComputerName -ieq 'AYW') { return [pscustomobject]@{ Allowed = $false; Reason = 'dev PC (AYW): window tests never run here' } }
@@ -112,6 +112,9 @@ $script:HarnessBootstrap = {
 }
 
 function Get-WpfSession {
+    # No code path creates a runspace where the guard says no.
+    $guard = Test-WindowTestsAllowed
+    if (-not $guard.Allowed) { throw ('Window tests are not allowed here: {0}.' -f $guard.Reason) }
     if ($script:HarnessSession -and $script:HarnessSession.RunspaceStateInfo.State -eq 'Opened') { return $script:HarnessSession }
     $rs = [runspacefactory]::CreateRunspace()
     $rs.ApartmentState = 'STA'

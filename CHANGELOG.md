@@ -6,8 +6,8 @@
 
 ### Added
 
-- Add a guard to the window tests. They open a window only when the variable SUITE_ALLOW_WINDOW_TESTS is 1, and never on the development computer. Without it, they report Skipped with the reason. The CI workflow sets the variable.
-- Add Tests/WindowGuard.Tests.ps1. It tests the guard and checks that every test file that opens a window uses it.
+- Add a guard to the window tests. They open a window only when the variable SUITE_ALLOW_WINDOW_TESTS is 1, and never on the development computer. Without it, they report Skipped with the reason. The window session also refuses to start where the guard says no. The CI workflow sets the variable.
+- Add Tests/WindowGuard.Tests.ps1. It tests the guard and checks that every window test file applies it to each top-level Describe.
 
 ### Changed
 

@@ -4,31 +4,41 @@
 # 1440x900, and measured. The app-specific names live in WindowConfig.ps1.
 
 BeforeDiscovery {
+    . "$PSScriptRoot\WindowConfig.ps1"
+    # The guard decides before any runspace or window exists. A skipped run says why, once.
     . "$PSScriptRoot\WindowHarness.ps1"
     $script:WindowGuard = Test-WindowTestsAllowed
-    if (-not $script:WindowGuard.Allowed -and -not $env:SUITE_WINDOW_GUARD_REPORTED) {
-        Write-Host ('Window tests skipped: {0}.' -f $script:WindowGuard.Reason)
+    if (-not $script:WindowGuard.Allowed -and -not $env:SUITE_WINDOW_GUARD_REPORTED) { Write-Host ('Window tests skipped: {0}.' -f $script:WindowGuard.Reason) }
+    if (-not $script:WindowGuard.Allowed) {
+        # Denied: evaluate nothing derived from the shell script. One placeholder case per list keeps the
+        # skipped Describe blocks visible as Skipped, and an empty case list never reaches Pester.
+        $script:Matrix = @(@{ Dark = $true; Theme = 'skipped'; W = 0; H = 0; Size = 'skipped' })
+        $script:ViewCases = @(@{ View = 'skipped' })
+        $script:NameCases = @(@{ Name = 'skipped' })
+        $script:DialogCases = @(@{ Index = 0 })
     }
-    . "$PSScriptRoot\WindowConfig.ps1"
-    $script:Matrix = foreach ($dark in $true, $false) {
-        foreach ($size in @(@(1024, 720), @(1440, 900))) {
-            @{ Dark = $dark; Theme = $(if ($dark) { 'dark' } else { 'light' }); W = $size[0]; H = $size[1]; Size = ('{0}x{1}' -f $size[0], $size[1]) }
+    else {
+        $script:Matrix = foreach ($dark in $true, $false) {
+            foreach ($size in @(@(1024, 720), @(1440, 900))) {
+                @{ Dark = $dark; Theme = $(if ($dark) { 'dark' } else { 'light' }); W = $size[0]; H = $size[1]; Size = ('{0}x{1}' -f $size[0], $size[1]) }
+            }
         }
+        $script:ViewCases = @($script:AppConfig.Views | ForEach-Object { @{ View = $_.Name } })
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) $script:AppConfig.Shell), [ref]$null, [ref]$null)
+        $script:NameCases = @($ast.FindAll({
+                    param($n)
+                    $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'FindName' -and
+                    $n.Expression.Extent.Text -eq '$window' -and $n.Arguments.Count -eq 1
+                }, $true) | ForEach-Object { $_.Arguments[0].Value } | Sort-Object -Unique | ForEach-Object { @{ Name = $_ } })
+        $script:DialogCases = @(for ($i = 0; $i -lt @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -match '^\s*<Controls:MetroWindow' }, $true)).Count; $i++) { @{ Index = $i } })
     }
-    $script:ViewCases = @($script:AppConfig.Views | ForEach-Object { @{ View = $_.Name } })
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) $script:AppConfig.Shell), [ref]$null, [ref]$null)
-    $script:NameCases = @($ast.FindAll({
-                param($n)
-                $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'FindName' -and
-                $n.Expression.Extent.Text -eq '$window' -and $n.Arguments.Count -eq 1
-            }, $true) | ForEach-Object { $_.Arguments[0].Value } | Sort-Object -Unique | ForEach-Object { @{ Name = $_ } })
-    $script:DialogCases = @(for ($i = 0; $i -lt @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -match '^\s*<Controls:MetroWindow' }, $true)).Count; $i++) { @{ Index = $i } })
 }
 
 BeforeAll {
     . "$PSScriptRoot\TestHelpers.ps1"
     . "$PSScriptRoot\WindowHarness.ps1"
     # The guard comes first. Nothing below may create a runspace or a window unless it allows.
+    # Pester 5 does not carry BeforeDiscovery variables into the run phase, so compute the guard again.
     $script:WindowGuard = Test-WindowTestsAllowed
     if (-not $script:WindowGuard.Allowed) { return }
     . "$PSScriptRoot\KnownContrastDefects.ps1"
