@@ -21,7 +21,7 @@ function Get-KnownContrastDefect {
                 'btnRemoveWindow:DisabledText', 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledBorder',
                 'btnViewCoverage:DisabledText', 'btnViewCoverage:EnabledBorder', 'btnViewTemplates:DisabledBorder',
                 'btnViewTemplates:DisabledText', 'btnViewTemplates:EnabledBorder', 'btnViewWindows:DisabledBorder',
-                'btnViewWindows:DisabledText', 'btnViewWindows:EnabledBorder', 'text:Properties',
+                'btnViewWindows:DisabledText', 'btnViewWindows:EnabledBorder',
                 'titlebar:inactive', 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
@@ -33,7 +33,7 @@ function Get-KnownContrastDefect {
                 'btnOptions:DisabledText', 'btnRefresh:DisabledText', 'btnRemoveWindow:DisabledText',
                 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText',
                 'btnViewWindows:DisabledText', 'cboStatusFilter:DisabledBorder', 'cboStatusFilter:DisabledText',
-                'cboStatusFilter:EnabledBorder', 'cboStatusFilter:EnabledText', 'text:Next 5 occurrences',
+                'cboStatusFilter:EnabledBorder', 'cboStatusFilter:EnabledText',
                 'titlebar:inactive', 'txtFilter:DisabledBorder', 'txtFilter:EnabledBorder',
                 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )

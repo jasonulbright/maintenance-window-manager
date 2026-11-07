@@ -9,6 +9,10 @@ Audit, create, edit, and bulk-apply Configuration Manager device collection main
 
 ![Maintenance Window Manager](screenshot.png)
 
+## User guide
+
+The [user guide](docs/index.md) walks every view, dialog and setting with images of the running window. [Capture the images again](docs/reference/capture-images.md) shows the one command that regenerates them.
+
 ## Requirements
 
 - Windows 10 / 11 or Server 2016+
