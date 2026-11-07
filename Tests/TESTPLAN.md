@@ -10,6 +10,8 @@ Measured 2026-11-06 with `Invoke-Checks.ps1` (Pester 5.7.1, PSScriptAnalyzer 1.2
 
 Run: `.\Invoke-Checks.ps1` (lint, tests, coverage floor 80%). It runs in CI on both hosts (`.github/workflows/checks.yml`).
 
+Window guard: `Window.Tests.ps1` opens windows only when the environment variable `SUITE_ALLOW_WINDOW_TESTS` is `1`, and never on the dev PC (`AYW`), even with the variable set. Otherwise its tests report Skipped, no runspace or window is created, and `Invoke-Checks.ps1` prints one line and passes. CI sets the variable on both hosts. The coverage floor is unchanged: the window tests run no module code, so skipping them does not lower module coverage. The test counts above were measured before the guard and are not measured again here.
+
 ## What is covered
 
 | Area | File | Contents |
@@ -23,6 +25,7 @@ Run: `.\Invoke-Checks.ps1` (lint, tests, coverage floor 80%). It runs in CI on b
 | Real cmdlet signatures | `CmCmdlet.Contract.Tests.ps1` | Every ConfigMgr call names only parameters that the real cmdlet has. Runs where the console is installed |
 | Start without the console | `Startup.Tests.ps1` | Plain message, `$false`, no raw exception |
 | Windows | `Window.Tests.ps1` | Main window and dialogs: names, titles, no clipped text and nothing off screen at 1024x720 and 1440x900 in both themes and all views, text and control contrast |
+| Window guard | `WindowGuard.Tests.ps1` | The guard with injected computer name and opt-in (dev PC refused, case-insensitive, opt-in needed, reason text), and every test file that opens a window uses the guard. Opens no window |
 | Lab | `Lab/Invoke-MaintenanceWindowLab.ps1` | Two ZZTEST- collections on CM01: every schedule type, create, update, bulk enable, copy, template, CSV preview, remove, WhatIf. Checks that no other maintenance window changed |
 
 ## Defects found

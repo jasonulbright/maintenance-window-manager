@@ -18,6 +18,8 @@ jobs:
     name: Windows PowerShell 5.1
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      SUITE_ALLOW_WINDOW_TESTS: '1'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -35,6 +37,8 @@ jobs:
     name: PowerShell 7
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      SUITE_ALLOW_WINDOW_TESTS: '1'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
