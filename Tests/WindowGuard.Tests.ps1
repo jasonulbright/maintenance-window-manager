@@ -18,15 +18,19 @@ BeforeAll {
         param([string]$Value)
         Test-WindowTestsAllowed -OptIn $Value
     }
-    # Reads the top-level Describe blocks of a script from its syntax tree, so a comment or a
-    # continuation line cannot fool the check. A nested block needs no guard of its own.
+    # Reads the outermost Describe blocks of a script from its syntax tree, so a comment or a
+    # continuation line cannot fool the check. A Describe inside a control statement (if, foreach)
+    # counts. A Describe nested inside another Describe needs no guard of its own.
     function Get-TopLevelDescribe {
         param([string]$Text)
         $ast = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$null, [ref]$null)
-        foreach ($statement in $ast.EndBlock.Statements) {
-            if ($statement -isnot [System.Management.Automation.Language.PipelineAst]) { continue }
-            $command = $statement.PipelineElements[0] -as [System.Management.Automation.Language.CommandAst]
-            if (-not $command -or $command.GetCommandName() -ne 'Describe') { continue }
+        $isDescribe = { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Describe' }
+        foreach ($command in $ast.FindAll($isDescribe, $true)) {
+            $nested = $false
+            for ($p = $command.Parent; $p; $p = $p.Parent) {
+                if (& $isDescribe $p) { $nested = $true; break }
+            }
+            if ($nested) { continue }
             $elements = $command.CommandElements
             $guarded = $false
             for ($i = 1; $i -lt $elements.Count; $i++) {
@@ -143,6 +147,26 @@ Describe 'Get-UnguardedDescribe reads the syntax tree' {
 
     It 'does not require a nested Describe to repeat the guard' {
         $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { Describe 'b' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'reports an unguarded Describe inside an if block' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { }" + [Environment]::NewLine + "if (`$true) { Describe 'b' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('b')
+    }
+
+    It 'reports an unguarded Describe inside a foreach block' {
+        $text = "foreach (`$i in 1..2) { Describe 'c' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('c')
+    }
+
+    It 'accepts a guarded Describe inside an if block' {
+        $text = "if (`$true) { Describe 'd' -Skip:(-not `$script:WindowGuard.Allowed) { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'does not require a Describe in an if block inside a Describe to repeat the guard' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { if (`$true) { Describe 'b' { } } }"
         @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
     }
 
