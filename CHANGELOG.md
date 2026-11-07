@@ -1,5 +1,25 @@
 # Changelog
 
+## [2026.11.06.0014] - 2026-11-06
+
+## 8 fixes in window durations, templates, exports and imports
+
+### Fixed
+
+- Keep the minutes of a window duration. A duration of 1 hour 30 minutes was saved as 1 hour, and a count of minutes above 59 was stored wrong by the site. The schedule now gets whole hours, and the minutes are set on the schedule.
+- Fix Export CSV and Export HTML. The buttons called the export functions with a parameter that they did not have, so every export failed.
+- Encode names in the HTML export. A collection name with < or & broke the report markup.
+- Check each row in Import-MaintenanceWindowsCsv. A text number threw a raw error, and an hour of 99 or a day named Funday passed as valid. Each row now has Valid and Error.
+- Keep both templates when two names give the same file name (Patch + 7 and Patch - 7). The second replaced the first. A device-like name (CON, NUL) gets a safe file name.
+- Refuse to delete a file that is not a .json template in Remove-WindowTemplate.
+- Read the template files as UTF-8, and skip an empty template file with a warning.
+- Show the whole Templates button row at 1024 pixels wide. Delete and Apply were cut off. The row now wraps. Get-CollectionsWithoutWindows accepts a null window.
+
+### Added
+
+- Support -WhatIf and -Confirm in every function of the module that changes the site or a template file.
+- Export-MaintenanceWindowsCsv and Export-MaintenanceWindowsHtml accept -Windows and -Columns as well as -DataTable.
+
 ## [2026.10.25.0013] - 2026-10-25
 
 ## 1 fix
