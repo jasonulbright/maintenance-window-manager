@@ -2,7 +2,7 @@
 
 ## [2026.11.06.0014] - 2026-11-06
 
-## 8 fixes in window durations, templates, exports and imports
+## 12 fixes in window durations, templates, exports and imports
 
 ### Fixed
 
@@ -14,6 +14,10 @@
 - Refuse to delete a file that is not a .json template in Remove-WindowTemplate.
 - Read the template files as UTF-8, and skip an empty template file with a warning.
 - Show the whole Templates button row at 1024 pixels wide. Delete and Apply were cut off. The row now wraps. Get-CollectionsWithoutWindows accepts a null window.
+- Keep the day of the month for a monthly window that starts on the 31st. The next dates were Feb 28 and then Mar 28; they are now Feb 28 and Mar 31.
+- Replace the template file that holds a name when its first file is gone. A second file with the same name no longer appears.
+- Keep a rename from leaving a window deleted: the new window is created without a second prompt after you approved the rename. A declined edit keeps the dialog open.
+- Create windows from a template without a prompt for each collection after you approved the template.
 
 ### Added
 
