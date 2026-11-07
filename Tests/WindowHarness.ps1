@@ -15,6 +15,21 @@ $script:HarnessRoot = Split-Path -Parent $PSScriptRoot
 
 $script:HarnessSession = $null
 
+# The guard for every test that opens a window. Window tests run only when the
+# environment variable SUITE_ALLOW_WINDOW_TESTS is 1, and never on the dev PC.
+# A test file calls this in BeforeDiscovery and skips its window Describe blocks
+# when Allowed is false. The parameters exist so the guard can be tested.
+function Test-WindowTestsAllowed {
+    [CmdletBinding()]
+    param(
+        [string]$ComputerName = [Environment]::MachineName,
+        [string]$OptIn = $env:SUITE_ALLOW_WINDOW_TESTS
+    )
+    if ($ComputerName -ieq 'AYW') { return [pscustomobject]@{ Allowed = $false; Reason = 'dev PC (AYW): window tests never run here' } }
+    if ($OptIn -ne '1')           { return [pscustomobject]@{ Allowed = $false; Reason = 'SUITE_ALLOW_WINDOW_TESTS is not 1' } }
+    [pscustomobject]@{ Allowed = $true; Reason = '' }
+}
+
 # Script text that every STA runspace starts with: assemblies, SuiteCommon, and
 # helper functions to open a themed window and measure it.
 $script:HarnessBootstrap = {
@@ -97,6 +112,9 @@ $script:HarnessBootstrap = {
 }
 
 function Get-WpfSession {
+    # No code path creates a runspace where the guard says no.
+    $guard = Test-WindowTestsAllowed
+    if (-not $guard.Allowed) { throw ('Window tests are not allowed here: {0}.' -f $guard.Reason) }
     if ($script:HarnessSession -and $script:HarnessSession.RunspaceStateInfo.State -eq 'Opened') { return $script:HarnessSession }
     $rs = [runspacefactory]::CreateRunspace()
     $rs.ApartmentState = 'STA'
