@@ -57,7 +57,8 @@ BeforeAll {
             foreach ($p in $named) {
                 $script:Checked++
                 $hit = $params | Where-Object { $_ -ieq $p }
-                if (-not $hit) { $hit = $params | Where-Object { $_ -like "$p*" } }
+                # PowerShell accepts a unique prefix of a parameter name. An ambiguous prefix is an error.
+                if (-not $hit) { $prefix = @($params | Where-Object { $_ -like "$p*" } | Select-Object -Unique); if ($prefix.Count -eq 1) { $hit = $prefix } }
                 if (-not $hit) { [void]$script:Problems.Add(('{0}:{1} {2} has no parameter -{3}' -f $f.Name, $c.Extent.StartLineNumber, $name, $p)) }
             }
         }

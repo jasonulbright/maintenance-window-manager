@@ -1272,13 +1272,15 @@ function Show-NewWindowDialog {
                     Add-LogLine ('Renaming "{0}" -> "{1}" on {2} (delete + recreate)' -f $original, $name, $coll.Name)
                     $removed = Remove-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $original
                     if (-not $removed) { Add-LogLine 'Rename aborted: failed to remove the old window.'; return }
+                    # The user approved the whole rename above: no second prompt may strand the window.
                     $created = New-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -Name $name `
-                        -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc
+                        -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc -Confirm:$false
                     if ($null -eq $created) { Add-LogLine 'Rename failed: old window deleted but new one did not create. Check log.'; return }
                     Add-LogLine ('Renamed and updated "{0}" on {1}' -f $name, $coll.Name)
                 } else {
-                    Set-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $name `
+                    $updated = Set-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $name `
                         -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc
+                    if (-not $updated) { Add-LogLine 'The window was not updated -- check the log for details. The dialog stays open.'; return }
                     Add-LogLine ('Updated maintenance window "{0}" on {1}' -f $name, $coll.Name)
                 }
             } else {

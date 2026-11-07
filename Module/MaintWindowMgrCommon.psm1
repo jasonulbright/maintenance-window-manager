@@ -397,12 +397,15 @@ function Get-NextOccurrences {
             }
         }
         5 {
-            # Monthly by date
+            # Monthly by date. Each date is the start date plus N months, so a start on the
+            # 31st gives Feb 28 and then Mar 31, not Mar 28.
+            $monthOffset = 0
             $candidate = $startTime
-            while ($candidate -le $now) { $candidate = $candidate.AddMonths(1) }
+            while ($candidate -le $now) { $monthOffset++; $candidate = $startTime.AddMonths($monthOffset) }
             for ($i = 0; $i -lt $Count; $i++) {
                 [void]$occurrences.Add($candidate)
-                $candidate = $candidate.AddMonths(1)
+                $monthOffset++
+                $candidate = $startTime.AddMonths($monthOffset)
             }
         }
         default {
@@ -802,6 +805,17 @@ function Save-WindowTemplate {
     $fileName = "$baseName.json"
     $filePath = Join-Path $TemplatesPath $fileName
     $suffix = 1
+    # A template with this name may sit in a numbered file (when its base file was deleted).
+    # Replace that file, so the list never holds two templates with one name.
+    foreach ($candidateFile in @(Get-ChildItem -LiteralPath $TemplatesPath -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
+        $candidateName = $null
+        try { $candidateName = [string](Get-Content -LiteralPath $candidateFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop).Name } catch { $candidateName = $null }
+        if ($candidateName -ieq $Name) {
+            $fileName = $candidateFile.Name
+            $filePath = $candidateFile.FullName
+            break
+        }
+    }
     while (Test-Path -LiteralPath $filePath) {
         $existingName = $null
         try { $existingName = [string](Get-Content -LiteralPath $filePath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop).Name } catch { $existingName = $null }
@@ -902,7 +916,7 @@ function New-WindowFromTemplate {
         if (-not $PSCmdlet.ShouldProcess($collId, "Create maintenance window '$windowName' from template")) { continue }
         try {
             $result = New-ManagedMaintenanceWindow -CollectionId $collId -Name $windowName `
-                -Schedule $schedule -ApplyTo $applyTo -IsEnabled $true -IsUtc ([bool]$Template.IsUtc)
+                -Schedule $schedule -ApplyTo $applyTo -IsEnabled $true -IsUtc ([bool]$Template.IsUtc) -Confirm:$false
 
             [void]$results.Add([PSCustomObject]@{
                 CollectionID   = $collId

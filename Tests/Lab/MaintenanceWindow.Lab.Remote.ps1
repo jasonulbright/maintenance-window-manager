@@ -20,8 +20,16 @@ $ns = "root\SMS\site_$SiteCode"
 $tplDir = Join-Path $ModuleRoot 'tpl'
 
 function Get-WindowSnapshot {
-    @(Get-CimInstance -Namespace $ns -ClassName SMS_ServiceWindow | Where-Object { $_.Name -notlike 'ZZTEST-*' } |
-            ForEach-Object { '{0}|{1}|{2}|{3}|{4}' -f $_.ServiceWindowID, $_.Name, $_.ServiceWindowType, $_.IsEnabled, $_.Duration } | Sort-Object)
+    # SMS_ServiceWindow is an embedded class: read the windows from each collection's settings
+    # (a lazy property that Get-CimInstance -InputObject loads).
+    $lines = foreach ($s in @(Get-CimInstance -Namespace $ns -ClassName SMS_CollectionSettings)) {
+        $full = Get-CimInstance -InputObject $s
+        foreach ($w in @($full.ServiceWindows)) {
+            if (-not $w -or $w.Name -like 'ZZTEST-*') { continue }
+            '{0}|{1}|{2}|{3}|{4}|{5}' -f $s.CollectionID, $w.ServiceWindowID, $w.Name, $w.ServiceWindowType, $w.IsEnabled, $w.Duration
+        }
+    }
+    @($lines | Sort-Object)
 }
 
 try {
@@ -133,7 +141,8 @@ finally {
     try {
         $left = @(Get-CimInstance -Namespace $ns -ClassName SMS_Collection -Filter "Name LIKE 'ZZTEST-MWM-$tag-%'")
         Add-Result 'no ZZTEST- collection of this run remains' ($left.Count -eq 0) ((@($left | ForEach-Object Name)) -join ',')
-        if ($snapshot) { Add-Result 'other maintenance windows are unchanged' ((@($snapshot) -join "`n") -ceq ((Get-WindowSnapshot) -join "`n")) '' }
+        $after = @(Get-WindowSnapshot)
+        Add-Result 'other maintenance windows are unchanged' ((@($snapshot) -join "`n") -ceq ($after -join "`n")) ("$(@($snapshot).Count) windows before, $($after.Count) after")
     } catch { Add-Result 'verify cleanup' $false $_.Exception.Message }
 }
 

@@ -218,6 +218,16 @@ Describe 'Window template files' {
         Test-Path -LiteralPath $f | Should -BeTrue
     }
 
+    It 'replaces the numbered file of a template when its base file is gone' {
+        $null = Save-WindowTemplate -TemplatesPath $script:dir -Name 'Patch + 7' -RecurrenceType Daily -DurationHours 1
+        $second = Save-WindowTemplate -TemplatesPath $script:dir -Name 'Patch - 7' -RecurrenceType Daily -DurationHours 2
+        Remove-Item -LiteralPath (Join-Path $script:dir 'patch---7.json') -Force
+        $again = Save-WindowTemplate -TemplatesPath $script:dir -Name 'Patch - 7' -RecurrenceType Daily -DurationHours 9
+        $again | Should -Be $second
+        @(Get-ChildItem -LiteralPath $script:dir -Filter '*.json').Count | Should -Be 1
+        (Get-Content -LiteralPath $again -Raw | ConvertFrom-Json).DurationHours | Should -Be 9
+    }
+
     It 'removes nothing under -WhatIf' {
         $path = Save-WindowTemplate -TemplatesPath $script:dir -Name 'Keep' -RecurrenceType Daily
         Remove-WindowTemplate -FilePath $path -WhatIf | Should -BeFalse
@@ -240,17 +250,24 @@ Describe 'New-WindowFromTemplate' {
         Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 2 -Exactly -ParameterFilter { $Name -eq 'Night' -and $ApplyTo -eq 'SoftwareUpdatesOnly' -and $Schedule -eq 'schedule' }
     }
 
+    It 'does not prompt a second time for each collection' {
+        Mock New-ManagedMaintenanceWindow { [PSCustomObject]@{ Name = $Name } } -ModuleName MaintWindowMgrCommon
+        $null = New-WindowFromTemplate -Template $script:tpl -TargetCollections @('A', 'B')
+        Should -Invoke New-ManagedMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 2 -Exactly -ParameterFilter { $PesterBoundParameters.ContainsKey('Confirm') -and -not $Confirm }
+    }
+
     It 'uses the name override' {
         $null = New-WindowFromTemplate -Template $script:tpl -TargetCollections @('A') -WindowNameOverride 'Special'
         Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -ParameterFilter { $Name -eq 'Special' }
     }
 
-    It 'maps window type <Type> to apply-to <ApplyTo>' -ForEach @(
-        @{ Type = 'SoftwareUpdatesOnly'; ApplyTo = 'SoftwareUpdatesOnly' }, @{ Type = 'TaskSequencesOnly'; ApplyTo = 'TaskSequencesOnly' }, @{ Type = 'Any'; ApplyTo = 'Any' }, @{ Type = 'Other'; ApplyTo = 'Any' }, @{ Type = $null; ApplyTo = 'Any' }
+    It 'maps window type <Type> to apply-to <Expected>' -ForEach @(
+        @{ Type = 'SoftwareUpdatesOnly'; Expected = 'SoftwareUpdatesOnly' }, @{ Type = 'TaskSequencesOnly'; Expected = 'TaskSequencesOnly' }, @{ Type = 'Any'; Expected = 'Any' }, @{ Type = 'Other'; Expected = 'Any' }, @{ Type = $null; Expected = 'Any' }
     ) {
         $script:tpl.WindowType = $Type
         $null = New-WindowFromTemplate -Template $script:tpl -TargetCollections @('A')
-        Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -ParameterFilter { $ApplyTo -eq $ApplyTo }
+        $global:ExpectedApplyTo = $Expected
+        Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 1 -Exactly -ParameterFilter { $ApplyTo -ceq $global:ExpectedApplyTo }
     }
 
     It 'reports a failure for the collection that the site refuses and continues (partial failure)' {
@@ -386,10 +403,11 @@ Describe 'Copy-MaintenanceWindowToCollections' {
         Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 2 -Exactly -ParameterFilter { $Name -eq 'Night' -and $ApplyTo -eq 'SoftwareUpdatesOnly' -and $IsEnabled -eq $true -and $IsUtc -eq $true -and $Schedule -eq 'schedule' }
     }
 
-    It 'maps window type <Type> to <ApplyTo>' -ForEach @(@{ Type = 4; ApplyTo = 'SoftwareUpdatesOnly' }, @{ Type = 5; ApplyTo = 'TaskSequencesOnly' }, @{ Type = 1; ApplyTo = 'Any' }) {
+    It 'maps window type <Type> to <Expected>' -ForEach @(@{ Type = 4; Expected = 'SoftwareUpdatesOnly' }, @{ Type = 5; Expected = 'TaskSequencesOnly' }, @{ Type = 1; Expected = 'Any' }) {
         $global:Fx = [PSCustomObject]@{ Name = 'N'; ServiceWindowSchedules = 'x'; ServiceWindowType = $Type; IsEnabled = $false; IsGMT = $false }
         $null = Copy-MaintenanceWindowToCollections -SourceCollectionId 'S' -SourceWindowName 'N' -TargetCollectionIds @('A')
-        Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -ParameterFilter { $ApplyTo -eq $ApplyTo -and $IsEnabled -eq $false }
+        $global:ExpectedApplyTo = $Expected
+        Should -Invoke New-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 1 -Exactly -ParameterFilter { $ApplyTo -ceq $global:ExpectedApplyTo -and $IsEnabled -eq $false }
     }
 
     It 'returns nothing and logs an error when the source window does not exist' {

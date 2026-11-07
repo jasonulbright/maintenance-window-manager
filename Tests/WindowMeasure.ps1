@@ -99,7 +99,7 @@ $script:MeasureFunctions = {
                 Tag = $Tag; Name = $name; Text = $text.Substring(0, [math]::Min(40, $text.Length))
                 Size = $e.FontSize; Bold = ($e.FontWeight.ToOpenTypeWeight() -ge 700)
                 Foreground = $fgc.ToString(); Backdrop = $backdrop.ToString()
-                Ratio = [math]::Round((Get-ContrastRatio $fgc $backdrop), 2)
+                Ratio = (Get-ContrastRatio $fgc $backdrop)
             }
         }
         return $rows
@@ -117,7 +117,7 @@ $script:MeasureFunctions = {
             if (-not $bg) { continue }
             $back = Merge-Color $bg.Color $bg.Opacity ([System.Windows.Media.Colors]::Black)
             $front = Merge-Color $fg.Color $fg.Opacity $back
-            $result[$state] = [math]::Round((Get-ContrastRatio $front $back), 2)
+            $result[$state] = (Get-ContrastRatio $front $back)
         }
         return [PSCustomObject]$result
     }
@@ -180,11 +180,11 @@ $script:MeasureFunctions = {
             $sc = Get-SolidColor $Control.Foreground
             if ($sc) { $r = Get-ContrastRatio (Merge-Color $sc.Color ($o * $sc.Opacity) $backdrop) $backdrop; if ($null -eq $worst -or $r -lt $worst) { $worst = $r } }
         }
-        if ($null -ne $worst) { $row.TextRatio = [math]::Round($worst, 2) }
+        if ($null -ne $worst) { $row.TextRatio = $worst }
         $bsc = Get-SolidColor $Control.BorderBrush
         if ($bsc -and $Control.BorderThickness.Left -gt 0) {
             $outside = Get-BackdropColor $Control $under $Window
-            $row.BorderRatio = [math]::Round((Get-ContrastRatio (Merge-Color $bsc.Color ($o * $bsc.Opacity) $outside) $outside), 2)
+            $row.BorderRatio = (Get-ContrastRatio (Merge-Color $bsc.Color ($o * $bsc.Opacity) $outside) $outside)
         }
         return [PSCustomObject]$row
     }

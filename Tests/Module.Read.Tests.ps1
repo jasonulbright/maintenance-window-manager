@@ -183,6 +183,10 @@ Describe 'Get-CollectionsWithoutWindows' {
         @(Get-CollectionsWithoutWindows -AllCollections $script:colls -AllWindows @($null, [PSCustomObject]@{ CollectionID = '' })).Count | Should -Be 3
     }
 
+    It 'returns nothing for a null collection list' {
+        @(Get-CollectionsWithoutWindows -AllCollections $null -AllWindows @()).Count | Should -Be 0
+    }
+
     It 'returns nothing when every collection has a window' {
         @(Get-CollectionsWithoutWindows -AllCollections $script:colls -AllWindows @($script:colls)).Count | Should -Be 0
     }
@@ -250,6 +254,12 @@ Describe 'Get-NextOccurrences' {
         $start = (Get-Date).AddMonths(-3)
         $r = @(Get-NextOccurrences -Window ([PSCustomObject]@{ StartTime = $start; RecurrenceType = 4 }) -Count 4)
         foreach ($d in $r) { $d.DayOfWeek | Should -Be $start.DayOfWeek }
+    }
+
+    It 'keeps the day of the month on the 31st across a short month' {
+        Mock Get-Date { [datetime]'2027-02-15T12:00:00' } -ModuleName MaintWindowMgrCommon
+        $r = @(Get-NextOccurrences -Window ([PSCustomObject]@{ StartTime = [datetime]'2027-01-31T03:00:00'; RecurrenceType = 5 }) -Count 4)
+        ($r | ForEach-Object { $_.ToString('yyyy-MM-dd') }) -join ',' | Should -Be '2027-02-28,2027-03-31,2027-04-30,2027-05-31'
     }
 
     It 'returns no date when Count is 0' {

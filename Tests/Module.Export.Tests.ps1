@@ -113,6 +113,13 @@ Describe 'Export-MaintenanceWindowsHtml' {
         ([regex]::Matches($html, 'class="disabled"')).Count | Should -Be 1
     }
 
+    It 'does not mark an empty or missing enabled value as disabled' {
+        $path = Join-Path $TestDrive 'nullenabled.html'
+        $rows = @([PSCustomObject]@{ Name = 'A'; IsEnabled = $null }, [PSCustomObject]@{ Name = 'B' })
+        Export-MaintenanceWindowsHtml -Windows $rows -Columns 'Name', 'IsEnabled' -OutputPath $path
+        (Get-Content -LiteralPath $path -Raw) | Should -Not -Match 'class="disabled"'
+    }
+
     It 'writes a valid page for an empty list' {
         $path = Join-Path $TestDrive 'e.html'
         Export-MaintenanceWindowsHtml -Windows @() -OutputPath $path
