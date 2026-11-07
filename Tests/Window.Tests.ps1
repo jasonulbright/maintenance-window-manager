@@ -5,24 +5,42 @@
 
 BeforeDiscovery {
     . "$PSScriptRoot\WindowConfig.ps1"
-    $script:Matrix = foreach ($dark in $true, $false) {
-        foreach ($size in @(@(1024, 720), @(1440, 900))) {
-            @{ Dark = $dark; Theme = $(if ($dark) { 'dark' } else { 'light' }); W = $size[0]; H = $size[1]; Size = ('{0}x{1}' -f $size[0], $size[1]) }
-        }
+    # The guard decides before any runspace or window exists. A skipped run says why, once.
+    . "$PSScriptRoot\WindowHarness.ps1"
+    $script:WindowGuard = Test-WindowTestsAllowed
+    if (-not $script:WindowGuard.Allowed -and -not $env:SUITE_WINDOW_GUARD_REPORTED) { Write-Host ('Window tests skipped: {0}.' -f $script:WindowGuard.Reason) }
+    if (-not $script:WindowGuard.Allowed) {
+        # Denied: evaluate nothing derived from the shell script. One placeholder case per list keeps the
+        # skipped Describe blocks visible as Skipped, and an empty case list never reaches Pester.
+        $script:Matrix = @(@{ Dark = $true; Theme = 'skipped'; W = 0; H = 0; Size = 'skipped' })
+        $script:ViewCases = @(@{ View = 'skipped' })
+        $script:NameCases = @(@{ Name = 'skipped' })
+        $script:DialogCases = @(@{ Index = 0 })
     }
-    $script:ViewCases = @($script:AppConfig.Views | ForEach-Object { @{ View = $_.Name } })
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) $script:AppConfig.Shell), [ref]$null, [ref]$null)
-    $script:NameCases = @($ast.FindAll({
-                param($n)
-                $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'FindName' -and
-                $n.Expression.Extent.Text -eq '$window' -and $n.Arguments.Count -eq 1
-            }, $true) | ForEach-Object { $_.Arguments[0].Value } | Sort-Object -Unique | ForEach-Object { @{ Name = $_ } })
-    $script:DialogCases = @(for ($i = 0; $i -lt @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -match '^\s*<Controls:MetroWindow' }, $true)).Count; $i++) { @{ Index = $i } })
+    else {
+        $script:Matrix = foreach ($dark in $true, $false) {
+            foreach ($size in @(@(1024, 720), @(1440, 900))) {
+                @{ Dark = $dark; Theme = $(if ($dark) { 'dark' } else { 'light' }); W = $size[0]; H = $size[1]; Size = ('{0}x{1}' -f $size[0], $size[1]) }
+            }
+        }
+        $script:ViewCases = @($script:AppConfig.Views | ForEach-Object { @{ View = $_.Name } })
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) $script:AppConfig.Shell), [ref]$null, [ref]$null)
+        $script:NameCases = @($ast.FindAll({
+                    param($n)
+                    $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Value -eq 'FindName' -and
+                    $n.Expression.Extent.Text -eq '$window' -and $n.Arguments.Count -eq 1
+                }, $true) | ForEach-Object { $_.Arguments[0].Value } | Sort-Object -Unique | ForEach-Object { @{ Name = $_ } })
+        $script:DialogCases = @(for ($i = 0; $i -lt @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -match '^\s*<Controls:MetroWindow' }, $true)).Count; $i++) { @{ Index = $i } })
+    }
 }
 
 BeforeAll {
     . "$PSScriptRoot\TestHelpers.ps1"
     . "$PSScriptRoot\WindowHarness.ps1"
+    # The guard comes first. Nothing below may create a runspace or a window unless it allows.
+    # Pester 5 does not carry BeforeDiscovery variables into the run phase, so compute the guard again.
+    $script:WindowGuard = Test-WindowTestsAllowed
+    if (-not $script:WindowGuard.Allowed) { return }
     . "$PSScriptRoot\KnownContrastDefects.ps1"
     . "$PSScriptRoot\WindowConfig.ps1"
     $script:Root = Split-Path -Parent $PSScriptRoot
@@ -69,9 +87,9 @@ BeforeAll {
     }
 }
 
-AfterAll { Close-WpfSession }
+AfterAll { if (Get-Command Close-WpfSession -ErrorAction SilentlyContinue) { Close-WpfSession } }
 
-Describe 'Main window XAML' {
+Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'loads as a MetroWindow with the app title and a minimum size that fits 1024x720' {
         $r = Invoke-WpfSta -Arguments @{ Xaml = $script:AppConfig.Xaml } -Script {
             $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
@@ -117,7 +135,7 @@ Describe 'Main window XAML' {
     }
 }
 
-Describe 'Dialog windows' {
+Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'finds the dialog XAML in the script' {
         $script:DialogXaml.Count | Should -BeGreaterThan 0
     }
@@ -148,7 +166,7 @@ Describe 'Dialog windows' {
     }
 }
 
-Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix {
+Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix -Skip:(-not $script:WindowGuard.Allowed) {
     It 'has no clipped text in the <View> view' -ForEach $script:ViewCases {
         $m = ($script:Measured['{0}|{1}' -f $Theme, $Size] | Where-Object View -eq $View)
         $m.Clipped | ForEach-Object { '{0}: needs {1}px, has {2}px' -f $_.Text, $_.Needed, $_.Actual } | Should -BeNullOrEmpty
@@ -160,7 +178,7 @@ Describe 'Layout <Theme> <Size>' -ForEach $script:Matrix {
     }
 }
 
-Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) {
+Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }) -Skip:(-not $script:WindowGuard.Allowed) {
     It 'shows every text at 4.5:1 (3:1 for large text) in the <View> view, except the listed known defects' -ForEach $script:ViewCases {
         $m = ($script:Measured['{0}|1440x900' -f $Theme] | Where-Object View -eq $View)
         $m.Text.Count | Should -BeGreaterThan 3
