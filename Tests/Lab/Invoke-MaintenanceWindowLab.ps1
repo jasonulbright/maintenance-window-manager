@@ -14,7 +14,9 @@
     defines $LabCredential. The script never prints it.
 
 .EXAMPLE
-    .\Tests\Lab\Invoke-MaintenanceWindowLab.ps1
+    .\Tests\Lab\Invoke-MaintenanceWindowLab.ps1 -CredentialFile C:\path\to\lab-credentials.local.ps1
+
+    The file must define $LabCredential, a PSCredential for the lab administrator.
 #>
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingWriteHost', '', Justification='Console harness.')]
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', '', Justification='CredentialFile is a file path, not a secret.')]
@@ -68,7 +70,15 @@ try {
         Start-Sleep -Seconds 5
         $done = Invoke-Command -Session $session -ArgumentList $remoteRoot -ScriptBlock { param($root) Test-Path -LiteralPath (Join-Path $root 'results.json') }
     } while (-not $done -and (Get-Date) -lt $deadline)
-    if (-not $done) { Write-Warning 'The lab task wrote no result before the timeout.' }
+    if (-not $done) {
+        # Do not stop the task while its cleanup may still run: give it a grace period first.
+        Write-Warning 'The lab task wrote no result before the timeout. Waiting up to 5 more minutes for its cleanup.'
+        $grace = (Get-Date).AddMinutes(5)
+        do {
+            Start-Sleep -Seconds 5
+            $done = Invoke-Command -Session $session -ArgumentList $remoteRoot -ScriptBlock { param($root) Test-Path -LiteralPath (Join-Path $root 'results.json') }
+        } while (-not $done -and (Get-Date) -lt $grace)
+    }
     $json = Invoke-Command -Session $session -ArgumentList $remoteRoot -ScriptBlock {
         param($root)
         $f = Join-Path $root 'results.json'
@@ -78,11 +88,14 @@ try {
     else { $results = @([PSCustomObject]@{ Step = 'run'; Ok = $false; Detail = 'The lab task wrote no result.' }) }
 }
 finally {
-    Invoke-Command -Session $session -ArgumentList $taskName, $remoteRoot -ScriptBlock {
-        param($t, $p)
-        if ($t -like 'ZZTEST-MWM-*') { Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue }
-        if ($p -like "$env:SystemRoot\Temp\ZZTEST-mwm-*") { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue }
+    # Remove the task and the staged files only when the task finished. A task that never wrote its
+    # result may still hold ZZTEST- objects; its staged files stay for inspection.
+    Invoke-Command -Session $session -ArgumentList $taskName, $remoteRoot, ([bool]$done) -ScriptBlock {
+        param($t, $p, $finished)
+        if ($t -like 'ZZTEST-*') { Stop-ScheduledTask -TaskName $t -ErrorAction SilentlyContinue; Unregister-ScheduledTask -TaskName $t -Confirm:$false -ErrorAction SilentlyContinue }
+        if ($finished -and $p -like "$env:SystemRoot\Temp\ZZTEST-*") { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction SilentlyContinue }
     }
+    if (-not $done) { Write-Warning "The lab task did not finish. Staged files are in $remoteRoot on $ComputerName. Check the site for ZZTEST- objects." }
     Remove-PSSession $session
 }
 

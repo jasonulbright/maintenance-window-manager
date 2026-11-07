@@ -66,6 +66,7 @@ if (-not $SkipLint) {
 $cfg = New-PesterConfiguration
 $testFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.Tests.ps1' -File |
         Where-Object { $_.FullName -notlike '*\Tests\Lab\*' -and $_.FullName -notlike '*\.git\*' })
+if ($testFiles.Count -eq 0) { Write-Host 'No test file found.'; exit 1 }
 if ($SkipWindow) { $testFiles = @($testFiles | Where-Object { $_.Name -ne 'Window.Tests.ps1' }) }
 $cfg.Run.Path = $testFiles.FullName
 $cfg.Run.PassThru = $true
@@ -76,13 +77,15 @@ $cfg.CodeCoverage.Path = @(Get-ChildItem -LiteralPath (Join-Path $root 'Module')
 $result = Invoke-Pester -Configuration $cfg
 
 $cov = $result.CodeCoverage
-$pct = if ($cov -and $cov.CommandsAnalyzedCount -gt 0) { [math]::Round(100 * $cov.CommandsExecutedCount / $cov.CommandsAnalyzedCount, 1) } else { 0 }
+# Keep the unrounded value for the floor: 79.96 must not round up to 80.
+$pct = if ($cov -and $cov.CommandsAnalyzedCount -gt 0) { 100 * $cov.CommandsExecutedCount / $cov.CommandsAnalyzedCount } else { 0 }
 Write-Host ('Tests: {0} run, {1} passed, {2} failed, {3} skipped' -f $result.TotalCount, $result.PassedCount, $result.FailedCount, $result.SkippedCount)
-Write-Host ('Coverage: {0}% of {1} module commands (floor {2}%)' -f $pct, $cov.CommandsAnalyzedCount, $CoverageFloor)
+Write-Host ('Coverage: {0:N1}% of {1} module commands (floor {2}%)' -f $pct, $cov.CommandsAnalyzedCount, $CoverageFloor)
 
 if ($result.TotalCount -eq 0) { Write-Host 'No test ran.'; $failed = $true }
 if ($result.FailedCount -gt 0) { $failed = $true }
-if ($pct -lt $CoverageFloor) { Write-Host ('Coverage {0}% is below the floor of {1}%.' -f $pct, $CoverageFloor); $failed = $true }
+if ($result.Result -ne 'Passed') { Write-Host ('Pester result: {0}' -f $result.Result); $failed = $true }
+if ($pct -lt $CoverageFloor) { Write-Host ('Coverage {0:N1}% is below the floor of {1}%.' -f $pct, $CoverageFloor); $failed = $true }
 
 if ($failed) { Write-Host 'CHECKS FAILED'; exit 1 }
 Write-Host 'CHECKS PASSED'

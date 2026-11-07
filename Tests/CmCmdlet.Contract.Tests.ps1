@@ -1,12 +1,13 @@
 #Requires -Modules Pester
 # Every ConfigMgr cmdlet call in the module names only parameters that the real
 # cmdlet has. Mocks accept any parameter name the test stub declares, so a wrong
-# parameter name (the old "Invoke-CMContentValidation -Id") passes a mocked test
-# and fails on a site. This test checks against the real cmdlet signature, and is
-# skipped on a machine without the ConfigMgr console.
+# parameter name passes a mocked test and fails on a site. This test checks against
+# the real cmdlet signature, and is skipped on a machine without the ConfigMgr
+# console. It reads the parameters written as -Name, and the keys of a splatted
+# hashtable (@params) that the function builds with a literal or with $params['Key'].
 
 BeforeDiscovery {
-    $script:Root = Split-Path -Parent $PSScriptRoot
+    . "$PSScriptRoot\TestHelpers.ps1"
     $script:CmAvailable = $false
     $candidates = @('C:\Program Files (x86)\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1',
         'C:\Program Files\Microsoft Configuration Manager\AdminConsole\bin\ConfigurationManager.psd1')
@@ -18,27 +19,44 @@ BeforeDiscovery {
             }
         }
     }
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:Root 'Module\MaintWindowMgrCommon.psm1'), [ref]$null, [ref]$null)
-    $script:Calls = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -match '^(Get|Set|New|Remove|Start|Invoke|Add)-CM' -and $n.GetCommandName() -ne 'Get-CMConnectionInfo' }, $true) | ForEach-Object {
-            $named = @($_.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] } | ForEach-Object { $_.ParameterName })
-            @{ Command = $_.GetCommandName(); Parameters = $named; Line = $_.Extent.StartLineNumber }
-        })
+    $script:Calls = @(Get-CmCmdletCall -Path (Join-Path $script:AppRoot 'Module\MaintWindowMgrCommon.psm1'))
+}
+
+BeforeAll {
+    . "$PSScriptRoot\TestHelpers.ps1"
+    $script:Found = @(Get-CmCmdletCall -Path (Join-Path $script:AppRoot 'Module\MaintWindowMgrCommon.psm1'))
 }
 
 Describe 'ConfigMgr cmdlet calls' {
     It 'finds the ConfigMgr cmdlet calls of the module' {
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path (Split-Path -Parent $PSScriptRoot) 'Module\MaintWindowMgrCommon.psm1'), [ref]$null, [ref]$null)
-        $calls = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -match '^(Get|Set|New|Remove|Start|Invoke|Add)-CM' -and $n.GetCommandName() -ne 'Get-CMConnectionInfo' }, $true)
-        @($calls).Count | Should -BeGreaterThan 8
+        $script:Found.Count | Should -BeGreaterThan 8
+    }
+
+    It 'reads the keys of a splatted hashtable and the named parameters' {
+        $f = Join-Path $TestDrive 'sample.ps1'
+        Set-Content -LiteralPath $f -Value @(
+            'function Demo {'
+            '    $p = @{ A = 1; ErrorAction = ''Stop'' }'
+            '    $p[''B''] = 2'
+            '    $p.C = 3'
+            '    New-CMThing @p -D 4'
+            '    Copy-CMOther -E 5'
+            '}')
+        $calls = @(Get-CmCmdletCall -Path $f)
+        $calls.Count | Should -Be 2
+        ($calls | Where-Object Command -eq 'New-CMThing').Parameters | Should -Be @('A', 'ErrorAction', 'B', 'C', 'D')
+        ($calls | Where-Object Command -eq 'Copy-CMOther').Parameters | Should -Be @('E')
     }
 
     It '<Command> at line <Line> uses only real parameters (<Parameters>)' -ForEach $script:Calls -Skip:(-not $script:CmAvailable) {
         $cmd = Get-Command $Command -ErrorAction Stop
         foreach ($p in $Parameters) {
-            $known = $cmd.Parameters.Values | Where-Object { $_.Name -eq $p -or $_.Aliases -contains $p }
-            # A prefix that is not ambiguous also binds, as PowerShell allows.
-            if (-not $known) { $known = $cmd.Parameters.Keys | Where-Object { $_ -like "$p*" } }
-            $known | Should -Not -BeNullOrEmpty -Because "$Command has no parameter -$p"
+            $exact = @($cmd.Parameters.Values | Where-Object { $_.Name -eq $p -or $_.Aliases -contains $p })
+            if ($exact.Count -eq 0) {
+                # PowerShell binds a prefix that names exactly one parameter.
+                $exact = @($cmd.Parameters.Keys | Where-Object { $_ -like "$p*" })
+                $exact.Count | Should -Be 1 -Because "-$p must name exactly one parameter of $Command (found $($exact.Count))"
+            }
         }
     }
 }

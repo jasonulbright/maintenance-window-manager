@@ -52,7 +52,7 @@ BeforeAll {
             $out = @()
             foreach ($view in $cfg.Views) {
                 foreach ($v in $cfg.Views) { $w.FindName($v.Container).Visibility = if ($v.Name -eq $view.Name) { 'Visible' } else { 'Collapsed' } }
-                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -ViewButtonNames @($cfg.Views | ForEach-Object { $_.Button }) `
+                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views `
                     -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name
                 $out += [PSCustomObject]@{
                     View        = $view.Name
@@ -60,6 +60,7 @@ BeforeAll {
                     Clipped     = @(Get-ClippedText $w)
                     Offscreen   = @(Get-OffscreenControls $w)
                     Interactive = @(Get-InteractiveContrast $w)
+                    TitleBar    = Get-TitleBarContrast $w
                 }
             }
             $w.Close()
@@ -167,6 +168,11 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
         $bad = $m.Text | Where-Object { $min = if ($_.Size -ge 24 -or ($_.Bold -and $_.Size -ge 18.66)) { 3.0 } else { 4.5 }; $_.Ratio -lt $min -and ($known -notcontains ('text:{0}' -f $_.Text)) }
         $bad | ForEach-Object { '{0} "{1}" {2} on {3} = {4}' -f $_.Name, $_.Text, $_.Foreground, $_.Backdrop, $_.Ratio } | Should -BeNullOrEmpty
     }
+    It 'keeps the title text readable on the active title bar' {
+        $tb = ($script:Measured['{0}|1440x900' -f $Theme] | Select-Object -First 1).TitleBar
+        $tb.Active | Should -BeGreaterOrEqual 4.5
+    }
+
     It 'meets the standard on every control, except the listed known defects' {
         $known = Get-KnownContrastDefect -Theme $Theme
         $violations = New-Object System.Collections.Generic.List[string]
@@ -186,6 +192,8 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
                 if ($r.Ratio -lt $min) { [void]$violations.Add(('text:{0}' -f $r.Text)) }
             }
         }
+        $tbi = ($script:Measured['{0}|1440x900' -f $Theme] | Select-Object -First 1).TitleBar.Inactive
+        if ($null -ne $tbi -and $tbi -lt 4.5) { [void]$violations.Add('titlebar:inactive') }
         $found = @($violations | Sort-Object -Unique)
         $new = @($found | Where-Object { $known -notcontains $_ })
         $fixed = @($known | Where-Object { $found -notcontains $_ })

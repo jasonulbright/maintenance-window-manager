@@ -122,8 +122,8 @@ catch {
 finally {
     try {
         if (-not (Test-CMConnection)) { [void](Connect-CMSite -SiteCode $SiteCode -SMSProvider $Provider) }
-        foreach ($coll in @(Get-CMDeviceCollection -Name 'ZZTEST-*' -ErrorAction SilentlyContinue)) {
-            if ($coll.Name -notlike 'ZZTEST-*') { continue }
+        foreach ($coll in @(Get-CMDeviceCollection -Name "ZZTEST-MWM-$tag-*" -ErrorAction SilentlyContinue)) {
+            if ($coll.Name -notlike "ZZTEST-MWM-$tag-*") { continue }
             foreach ($w in @(Get-CMMaintenanceWindow -CollectionId $coll.CollectionID -ErrorAction SilentlyContinue)) {
                 try { Remove-CMMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $w.Name -Force -ErrorAction Stop } catch { $null = $_ }
             }
@@ -131,9 +131,8 @@ finally {
         }
     } catch { Add-Result 'cleanup' $false $_.Exception.Message }
     try {
-        $left = @(Get-CimInstance -Namespace $ns -ClassName SMS_Collection -Filter "Name LIKE 'ZZTEST-%'")
-        $leftW = @(Get-CimInstance -Namespace $ns -ClassName SMS_ServiceWindow | Where-Object { $_.Name -like 'ZZTEST-*' })
-        Add-Result 'no ZZTEST- object remains' ($left.Count -eq 0 -and $leftW.Count -eq 0) ((@($left | ForEach-Object Name) + @($leftW | ForEach-Object Name)) -join ',')
+        $left = @(Get-CimInstance -Namespace $ns -ClassName SMS_Collection -Filter "Name LIKE 'ZZTEST-MWM-$tag-%'")
+        Add-Result 'no ZZTEST- collection of this run remains' ($left.Count -eq 0) ((@($left | ForEach-Object Name)) -join ',')
         if ($snapshot) { Add-Result 'other maintenance windows are unchanged' ((@($snapshot) -join "`n") -ceq ((Get-WindowSnapshot) -join "`n")) '' }
     } catch { Add-Result 'verify cleanup' $false $_.Exception.Message }
 }

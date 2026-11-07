@@ -46,12 +46,13 @@ $script:HarnessBootstrap = {
     # Applies the theme the way the shell does at start-up and on a toggle:
     # SuiteCommon palette, sidebar buttons, options button, log label, title bar.
     function Initialize-ShellTheme {
-        param($Window, [bool]$Dark, [string[]]$ViewButtonNames, [string]$OptionsButtonName, [string]$LogLabelName, [string]$ActiveView)
+        param($Window, [bool]$Dark, [object[]]$Views, [string]$OptionsButtonName, [string]$LogLabelName, [string]$ActiveView)
         $global:HarnessDark = $Dark
         $global:HarnessActiveView = $ActiveView
-        $views = @(foreach ($n in $ViewButtonNames) { @{ Name = $n; Button = $Window.FindName($n) } })
+        # Each view definition has a Name (the active view name) and a Button (the x:Name of its sidebar button).
+        $viewButtons = @(foreach ($v in $Views) { @{ Name = $v.Name; Button = $Window.FindName($v.Button) } })
         Initialize-SuiteTheme -Window $Window -IsDarkGetter { [bool]$global:HarnessDark } -ActiveViewGetter { $global:HarnessActiveView } `
-            -ViewButtons $views -OptionsButton $(if ($OptionsButtonName) { $Window.FindName($OptionsButtonName) }) `
+            -ViewButtons $viewButtons -OptionsButton $(if ($OptionsButtonName) { $Window.FindName($OptionsButtonName) }) `
             -LogLabel $(if ($LogLabelName) { $Window.FindName($LogLabelName) })
         Update-SidebarButtonTheme
         Update-TitleBarBrushes
@@ -106,8 +107,15 @@ function Get-WpfSession {
     $ps.Runspace = $rs
     [void]$ps.AddScript($script:HarnessBootstrap.ToString(), $false)
     [void]$ps.AddScript($script:MeasureFunctions.ToString(), $false)
-    [void]$ps.Invoke()
-    if ($ps.HadErrors) { throw ($ps.Streams.Error | ForEach-Object { $_.ToString() }) -join "`n" }
+    try {
+        [void]$ps.Invoke()
+        if ($ps.HadErrors) { throw (($ps.Streams.Error | ForEach-Object { $_.ToString() }) -join "`n") }
+    }
+    catch {
+        $ps.Dispose()
+        $rs.Dispose()
+        throw
+    }
     $ps.Dispose()
     $script:HarnessSession = $rs
     return $rs

@@ -19,8 +19,8 @@ try {
             $out = @()
             foreach ($view in $cfg.Views) {
                 foreach ($v in $cfg.Views) { $w.FindName($v.Container).Visibility = if ($v.Name -eq $view.Name) { 'Visible' } else { 'Collapsed' } }
-                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -ViewButtonNames @($cfg.Views | ForEach-Object { $_.Button }) -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name
-                $out += [PSCustomObject]@{ Text = @(Get-TextContrast $w); Interactive = @(Get-InteractiveContrast $w) }
+                Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name
+                $out += [PSCustomObject]@{ Text = @(Get-TextContrast $w); Interactive = @(Get-InteractiveContrast $w); TitleBar = Get-TitleBarContrast $w }
             }
             $w.Close(); , $out
         }
@@ -35,6 +35,7 @@ try {
                 }
             }
         }
+        if ($null -ne $r[0].TitleBar.Inactive -and $r[0].TitleBar.Inactive -lt 4.5) { [void]$keys.Add('titlebar:inactive') }
         Write-Host ("== {0}" -f $(if ($dark) { 'dark' } else { 'light' }))
         Write-Host (($keys | Sort-Object -Unique | ForEach-Object { "'" + ($_ -replace "'", "''") + "'" }) -join ', ')
     }

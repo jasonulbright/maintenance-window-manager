@@ -27,7 +27,7 @@ BeforeAll {
         foreach ($c in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
             $name = $c.GetCommandName()
             if (-not $name) { continue }
-            $named = @($c.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] } | ForEach-Object { $_.ParameterName })
+            $named = @(Get-CommandParameterName -Command $c)
             if ($named.Count -eq 0) { continue }
             $params = $null
             if ($own.ContainsKey($name)) {
@@ -41,8 +41,12 @@ BeforeAll {
                 }
                 else { $params = @() }
                 $common = 'Verbose', 'Debug', 'ErrorAction', 'WarningAction', 'InformationAction', 'ErrorVariable', 'WarningVariable', 'InformationVariable', 'OutVariable', 'OutBuffer', 'PipelineVariable', 'WhatIf', 'Confirm'
-                $isAdvanced = [bool]($def.Body.ParamBlock -and ($def.Body.ParamBlock.Attributes | Where-Object { $_.TypeName.Name -eq 'CmdletBinding' }))
-                if ($isAdvanced) { $params += $common }
+                $binding = if ($def.Body.ParamBlock) { $def.Body.ParamBlock.Attributes | Where-Object { $_.TypeName.Name -eq 'CmdletBinding' } | Select-Object -First 1 }
+                if ($binding) {
+                    # -WhatIf and -Confirm exist only when the function says SupportsShouldProcess.
+                    $shouldProcess = [bool]($binding.NamedArguments | Where-Object { $_.ArgumentName -eq 'SupportsShouldProcess' })
+                    $params += $(if ($shouldProcess) { $common } else { $common | Where-Object { $_ -notin 'WhatIf', 'Confirm' } })
+                }
             }
             else {
                 $cmd = Get-Command $name -ErrorAction SilentlyContinue

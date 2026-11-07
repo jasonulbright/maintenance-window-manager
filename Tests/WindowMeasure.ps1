@@ -40,7 +40,9 @@ $script:MeasureFunctions = {
         while ($d) {
             if ($window -and $d -is [System.Windows.FrameworkElement] -and $d.Name -eq 'PART_TitleBar') {
                 # The title bar is painted from the window's title brush, not from a Background.
-                $tbBrush = if ($window.IsActive) { $window.WindowTitleBrush } else { $window.NonActiveWindowTitleBrush }
+                # Always the active title bar, so the result does not depend on whether the runner
+                # activated the window. Get-TitleBarContrast measures the inactive bar.
+                $tbBrush = $window.WindowTitleBrush
                 $tsc = Get-SolidColor $tbBrush
                 if ($tsc) { $layers.Add(@{ C = $tsc.Color; O = $tsc.Opacity }); break }
             }
@@ -103,6 +105,23 @@ $script:MeasureFunctions = {
         return $rows
     }
 
+    function Get-TitleBarContrast {
+        # Contrast of the title text on the active and on the inactive title bar.
+        param($Window)
+        $fg = Get-SolidColor $Window.TitleForeground
+        $result = [ordered]@{ Active = $null; Inactive = $null }
+        if (-not $fg) { return [PSCustomObject]$result }
+        foreach ($state in 'Active', 'Inactive') {
+            $brush = if ($state -eq 'Active') { $Window.WindowTitleBrush } else { $Window.NonActiveWindowTitleBrush }
+            $bg = Get-SolidColor $brush
+            if (-not $bg) { continue }
+            $back = Merge-Color $bg.Color $bg.Opacity ([System.Windows.Media.Colors]::Black)
+            $front = Merge-Color $fg.Color $fg.Opacity $back
+            $result[$state] = [math]::Round((Get-ContrastRatio $front $back), 2)
+        }
+        return [PSCustomObject]$result
+    }
+
     function Get-ClippedText {
         # Text that does not fit its TextBlock: unwrapped, untrimmed and narrower than the text.
         param($Window)
@@ -129,7 +148,7 @@ $script:MeasureFunctions = {
         foreach ($e in (Get-VisualDescendants $Window)) {
             if ($e -isnot [System.Windows.FrameworkElement] -or -not $e.Name) { continue }
             if (-not (Test-VisibleInTree $e) -or $e.ActualWidth -le 0) { continue }
-            if ($e -isnot [System.Windows.Controls.Primitives.ButtonBase] -and $e -isnot [System.Windows.Controls.TextBox] -and $e -isnot [System.Windows.Controls.ComboBox]) { continue }
+            if ($e -isnot [System.Windows.Controls.Primitives.ButtonBase] -and $e -isnot [System.Windows.Controls.TextBox] -and $e -isnot [System.Windows.Controls.Primitives.Selector] -and $e -isnot [System.Windows.Controls.TreeView]) { continue }
             $p = $e.TransformToAncestor($Window).Transform([System.Windows.Point]::new(0, 0))
             if ($p.X -lt -1 -or $p.Y -lt -1 -or ($p.X + $e.ActualWidth) -gt ($content.ActualWidth + 1) -or ($p.Y + $e.ActualHeight) -gt ($content.ActualHeight + 1)) {
                 $rows += [PSCustomObject]@{ Name = $e.Name; X = [math]::Round($p.X); Y = [math]::Round($p.Y); W = [math]::Round($e.ActualWidth); H = [math]::Round($e.ActualHeight); ContentW = [math]::Round($content.ActualWidth); ContentH = [math]::Round($content.ActualHeight) }

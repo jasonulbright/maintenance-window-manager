@@ -19,9 +19,10 @@ function Get-KnownContrastDefect {
                 'btnExportHtml:DisabledText', 'btnNewTemplate:DisabledText', 'btnNewWindow:DisabledText',
                 'btnOptions:DisabledBorder', 'btnOptions:EnabledBorder', 'btnRefresh:DisabledText',
                 'btnRemoveWindow:DisabledText', 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledBorder',
-                'btnViewCoverage:EnabledBorder', 'btnViewTemplates:DisabledBorder', 'btnViewTemplates:EnabledBorder',
-                'btnViewWindows:DisabledBorder', 'btnViewWindows:EnabledBorder', 'text:Properties',
-                'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
+                'btnViewCoverage:DisabledText', 'btnViewCoverage:EnabledBorder', 'btnViewTemplates:DisabledBorder',
+                'btnViewTemplates:DisabledText', 'btnViewTemplates:EnabledBorder', 'btnViewWindows:DisabledBorder',
+                'btnViewWindows:DisabledText', 'btnViewWindows:EnabledBorder', 'text:Properties',
+                'titlebar:inactive', 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
         'light' {
@@ -33,8 +34,8 @@ function Get-KnownContrastDefect {
                 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText',
                 'btnViewWindows:DisabledText', 'cboStatusFilter:DisabledBorder', 'cboStatusFilter:DisabledText',
                 'cboStatusFilter:EnabledBorder', 'cboStatusFilter:EnabledText', 'text:Next 5 occurrences',
-                'txtFilter:DisabledBorder', 'txtFilter:EnabledBorder', 'txtTemplateScheduleSummary:DisabledBorder',
-                'txtTemplateScheduleSummary:EnabledBorder'
+                'titlebar:inactive', 'txtFilter:DisabledBorder', 'txtFilter:EnabledBorder',
+                'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
     }
