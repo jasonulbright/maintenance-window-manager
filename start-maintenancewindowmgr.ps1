@@ -19,8 +19,8 @@
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
-    Version    : 2026.10.25.0013
-    Updated    : 2026-09-21
+    Version    : 2026.11.06.0014
+    Updated    : 2026-11-06
 #>
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidGlobalVars', '', Justification='Per feedback_ps_wpf_handler_rules.md and PS51-WPF-001..003: flat-.ps1 GetNewClosure strips $script: scope. $global: survives closure scope-strip and keeps shared mutable state reachable from closure-captured handlers.')]
@@ -1272,13 +1272,15 @@ function Show-NewWindowDialog {
                     Add-LogLine ('Renaming "{0}" -> "{1}" on {2} (delete + recreate)' -f $original, $name, $coll.Name)
                     $removed = Remove-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $original
                     if (-not $removed) { Add-LogLine 'Rename aborted: failed to remove the old window.'; return }
+                    # The user approved the whole rename above: no second prompt may strand the window.
                     $created = New-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -Name $name `
-                        -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc
+                        -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc -Confirm:$false
                     if ($null -eq $created) { Add-LogLine 'Rename failed: old window deleted but new one did not create. Check log.'; return }
                     Add-LogLine ('Renamed and updated "{0}" on {1}' -f $name, $coll.Name)
                 } else {
-                    Set-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $name `
+                    $updated = Set-ManagedMaintenanceWindow -CollectionId $coll.CollectionID -MaintenanceWindowName $name `
                         -Schedule $schedule -ApplyTo $applyTo -IsEnabled $isEnabled -IsUtc $st.IsUtc
+                    if (-not $updated) { Add-LogLine 'The window was not updated -- check the log for details. The dialog stays open.'; return }
                     Add-LogLine ('Updated maintenance window "{0}" on {1}' -f $name, $coll.Name)
                 }
             } else {
@@ -1749,7 +1751,7 @@ $btnExportCsv.Add_Click({
     if (-not (Test-Path -LiteralPath $reportsDir)) { New-Item -ItemType Directory -Path $reportsDir -Force | Out-Null }
     $sfd.InitialDirectory = $reportsDir
     if ($sfd.ShowDialog() -eq $true) {
-        Export-MaintenanceWindowsCsv -Windows $script:RawWindows -OutputPath $sfd.FileName
+        Export-MaintenanceWindowsCsv -Windows @($script:RawWindows) -OutputPath $sfd.FileName
         Add-LogLine ('Exported CSV: {0}' -f $sfd.FileName)
     }
 })
@@ -1763,7 +1765,7 @@ $btnExportHtml.Add_Click({
     if (-not (Test-Path -LiteralPath $reportsDir)) { New-Item -ItemType Directory -Path $reportsDir -Force | Out-Null }
     $sfd.InitialDirectory = $reportsDir
     if ($sfd.ShowDialog() -eq $true) {
-        Export-MaintenanceWindowsHtml -Windows $script:RawWindows -OutputPath $sfd.FileName
+        Export-MaintenanceWindowsHtml -Windows @($script:RawWindows) -OutputPath $sfd.FileName
         Add-LogLine ('Exported HTML: {0}' -f $sfd.FileName)
     }
 })
