@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- Show the preview of the schedule editor for the selected day. A weekly schedule used the weekday of the start date and ignored the Day of Week list, a monthly schedule ignored the Day of Month and the Week Order. The window that the tool creates fired on the selected day, so the preview was wrong.
+- Show the preview of the schedule editor for the selected day. A weekly schedule used the weekday of the start date and ignored the Day of Week list, a monthly schedule ignored the Day of Month and the Week Order, and later months kept the day of the first month. The day 0 and the week order Last now work. The window that the tool creates fired on the selected day, so the preview was wrong.
 - Show the tab headers in the theme text color, bold when selected, at size 13. The unselected headers failed the 4.5:1 contrast test and the MahApps default size of 26 made them much larger than the other text.
 - Remove the hint to configure the site and click Refresh from the page header of the Windows view. It stayed after the connection.
 

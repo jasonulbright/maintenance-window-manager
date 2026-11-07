@@ -98,6 +98,9 @@ try {
         $out = Join-Path $tmp ([IO.Path]::GetFileNameWithoutExtension($run.Steps))
         New-Item -ItemType Directory $out | Out-Null
         Copy-Item 'C:\guide\ui\out\*' $out -FromSession $session -Recurse -Force
+        # The flag file holds inished or ailed: <reason>. A failure is reported even when the log could not be written.
+        $flagText = (Get-Content (Join-Path $out 'finished.flag') -Raw -ErrorAction SilentlyContinue)
+        if ($flagText -and $flagText.Trim() -like 'failed:*') { $failed.Add($flagText.Trim()) }
         $log = Join-Path $out 'run.log'
         if (-not (Test-Path $log)) { throw "The capture wrote no run.log: $($run.Steps)" }
         Get-Content $log | Where-Object { $_ -match '^\d\d:\d\d:\d\d\s+ERROR' } | ForEach-Object { Write-Warning $_; $failed.Add($_) }

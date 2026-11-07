@@ -977,6 +977,31 @@ function Set-ScheduleEditorState {
     Update-ScheduleEditorVisibility -Dialog $Dialog
 }
 
+function Get-MonthlyPreviewDate {
+    <#
+    .SYNOPSIS
+        The date of a monthly schedule in one month, from the editor settings.
+    .DESCRIPTION
+        MonthlyByDate: the selected day of the month, cut to the length of that month. Day 0 means the last day.
+        MonthlyByWeekday: the selected week order (First to Fourth, or Last) of the selected day of week.
+    #>
+    param([Parameter(Mandatory)][hashtable]$State, [Parameter(Mandatory)][int]$Year, [Parameter(Mandatory)][int]$Month)
+    $length = [datetime]::DaysInMonth($Year, $Month)
+    if ($State.Recurrence -eq 'MonthlyByDate') {
+        $dom = [int]$State.DayOfMonth
+        $day = if ($dom -le 0) { $length } else { [math]::Min($dom, $length) }
+        return [datetime]::new($Year, $Month, $day, $State.Hour, $State.Minute, 0)
+    }
+    $target = [System.DayOfWeek]$State.DayOfWeek
+    $first = [datetime]::new($Year, $Month, 1, $State.Hour, $State.Minute, 0)
+    while ($first.DayOfWeek -ne $target) { $first = $first.AddDays(1) }
+    $index = switch ([string]$State.WeekOrder) { 'First' { 0 } 'Second' { 1 } 'Third' { 2 } 'Fourth' { 3 } default { -1 } }
+    if ($index -ge 0) { return $first.AddDays(7 * $index) }
+    $last = $first
+    while ($last.AddDays(7).Month -eq $first.Month) { $last = $last.AddDays(7) }
+    return $last
+}
+
 function Get-PreviewStartDateTime {
     <#
     .SYNOPSIS
@@ -994,23 +1019,27 @@ function Get-PreviewStartDateTime {
             $target = [System.DayOfWeek]$State.DayOfWeek
             while ($start.DayOfWeek -ne $target) { $start = $start.AddDays(1) }
         }
-        'MonthlyByDate' {
-            $day = [math]::Min([int]$State.DayOfMonth, [datetime]::DaysInMonth($date.Year, $date.Month))
-            $start = [datetime]::new($date.Year, $date.Month, $day, $State.Hour, $State.Minute, 0)
-        }
-        'MonthlyByWeekday' {
-            $target = [System.DayOfWeek]$State.DayOfWeek
-            $first = [datetime]::new($date.Year, $date.Month, 1, $State.Hour, $State.Minute, 0)
-            while ($first.DayOfWeek -ne $target) { $first = $first.AddDays(1) }
-            $index = switch ([string]$State.WeekOrder) { 'First' { 0 } 'Second' { 1 } 'Third' { 2 } 'Fourth' { 3 } default { -1 } }
-            if ($index -ge 0) { $start = $first.AddDays(7 * $index) }
-            else {
-                $start = $first
-                while ($start.AddDays(7).Month -eq $first.Month) { $start = $start.AddDays(7) }
-            }
-        }
+        { $_ -in 'MonthlyByDate', 'MonthlyByWeekday' } { $start = Get-MonthlyPreviewDate -State $State -Year $date.Year -Month $date.Month }
     }
     return $start
+}
+
+function Get-MonthlyPreviewOccurrences {
+    <#
+    .SYNOPSIS
+        The next occurrences of a monthly schedule, one date for each month, with the selected day kept for each month.
+    #>
+    param([Parameter(Mandatory)][hashtable]$State, [int]$Count = 5, [datetime]$Now = (Get-Date))
+    $date = $State.StartDate
+    $startDay = [datetime]::new($date.Year, $date.Month, $date.Day, $State.Hour, $State.Minute, 0)
+    $month = [datetime]::new($date.Year, $date.Month, 1)
+    $found = New-Object System.Collections.Generic.List[datetime]
+    for ($i = 0; $i -lt 600 -and $found.Count -lt $Count; $i++) {
+        $candidate = Get-MonthlyPreviewDate -State $State -Year $month.Year -Month $month.Month
+        if ($candidate -gt $Now -and $candidate -ge $startDay.Date) { $found.Add($candidate) }
+        $month = $month.AddMonths(1)
+    }
+    return @($found)
 }
 function Update-SchedulePreview {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates the in-window preview TextBlock only.')]
@@ -1036,7 +1065,7 @@ function Update-SchedulePreview {
             StartTime      = $startDt
             Duration       = $duration
         }
-        $next = @(Get-NextOccurrences -Window $syn -Count 5)
+        $next = if ($st.Recurrence -in 'MonthlyByDate', 'MonthlyByWeekday') { @(Get-MonthlyPreviewOccurrences -State $st -Count 5) } else { @(Get-NextOccurrences -Window $syn -Count 5) }
         if (@($next).Count -eq 0) {
             $tx.Text = '(no future occurrences -- check that the start date is in the future for one-time, or that recurrence is set)'
         } else {
@@ -1281,7 +1310,7 @@ function Show-NewWindowDialog {
         if (-not $name) { Add-LogLine 'Validation: window name required.'; return }
 
         $st = Get-ScheduleEditorState -Dialog $dlg
-        $startDt = Get-PreviewStartDateTime -State $st
+        $startDt = [datetime]::new($st.StartDate.Year, $st.StartDate.Month, $st.StartDate.Day, $st.Hour, $st.Minute, 0)
         $applyTo = if ($cboWindowType.SelectedItem) { [string]$cboWindowType.SelectedItem.Content } else { 'Any' }
         $isEnabled = [bool]$chkWindowEnabled.IsChecked
 

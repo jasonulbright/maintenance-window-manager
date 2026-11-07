@@ -40,9 +40,12 @@ Describe 'User guide' {
 
     It 'links every page from the index' {
         $strIndex = [regex]::Replace((Get-Content -LiteralPath (Join-Path -Path $script:strDocsRoot -ChildPath 'index.md') -Raw), '(?s)```.*?```', '')
+        # Link targets only: an image reference and a link in an HTML comment do not count. A fragment and a link title are allowed.
+        $strIndex = [regex]::Replace($strIndex, '(?s)<!--.*?-->', '')
+        $arrTarget = @([regex]::Matches($strIndex, '(?<!\!)\[[^\]]*\]\(([^)\s#]+)(?:#[^)\s]*)?(?:\s+"[^"]*")?\)') | ForEach-Object { $_.Groups[1].Value })
         $arrOrphan = foreach ($objPage in $script:arrPage) {
             $strRelative = $objPage.FullName.Substring($script:strDocsRoot.Length + 1).Replace('\', '/')
-            if ($strRelative -ne 'index.md' -and $strIndex -notmatch ('(?<!\!)\[[^\]]*\]\(' + [regex]::Escape($strRelative) + '\)')) { $strRelative }
+            if ($strRelative -ne 'index.md' -and $arrTarget -notcontains $strRelative) { $strRelative }
         }
         @($arrOrphan) | Should -BeNullOrEmpty
     }

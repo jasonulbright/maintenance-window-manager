@@ -12,7 +12,8 @@ Use it in each dialog that creates or changes a schedule.
 
 ## Requirements
 
-None. The editor needs no connection.
+- The New Window and Edit Window dialogs need a connection to the site and a successful refresh before they open.
+- The Template editor opens without a connection.
 
 ## Steps
 
@@ -39,7 +40,7 @@ The settings that do not belong to the recurrence are hidden.
 
 ### Read the preview
 
-The **Next 5 occurrences** box shows the dates and times, for example `2026-11-10  Tue  02:00`. For a weekly schedule, the first line is the first selected weekday on or after the start date. For a monthly schedule, it is the selected day in the month of the start date.
+The **Next 5 occurrences** box shows the dates and times, for example `2026-11-10  Tue  02:00`. It skips every date at or before the current time. If today is 10 November, the start date is 20 November and the day of the month is 5, the first line is 5 December. For a weekly schedule, the first line is the first selected weekday on or after the start date. For a monthly schedule, it is the first selected day that is on or after the start date and in the future.
 
 ![A weekly schedule that starts on a Saturday and fires on Tuesdays](../images/dialog-new-window.png)
 
@@ -58,7 +59,8 @@ For a one-time schedule with a start date in the past, the box shows a hint that
 ## Limits
 
 - The preview comes from the settings of the editor. The site computes the real schedule.
-- A day of month above the days of the month in the start month is cut to the last day.
+- A day of the month above the length of a month is cut to the last day of that month. The selected day stays for the other months, so day 31 gives 30 November and 31 December. The day 0 means the last day.
+- The week order Last gives the last selected weekday of each month.
 
 ## Troubleshooting
 

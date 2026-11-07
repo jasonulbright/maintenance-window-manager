@@ -12,7 +12,7 @@ Use it to review the maintenance windows of a site, to find collections without 
 
 ## Requirements
 
-- Windows 10 or Windows 11, PowerShell 5.1 and .NET Framework 4.7.2 or later.
+- Windows 10, Windows 11 or Windows Server 2016 or later, PowerShell 5.1 and .NET Framework 4.7.2 or later.
 - The Configuration Manager console. The tool loads the `ConfigurationManager` PowerShell module of the console. Without the console, **Refresh** fails with a message in the log. See [Error messages](reference/error-messages.md).
 - Rights on the site to read collections and, for the buttons that change a window, to modify collections. See [Permissions](reference/permissions.md).
 

@@ -1,4 +1,4 @@
-#Requires -Modules Pester
+﻿#Requires -Modules Pester
 # Logic of start-maintenancewindowmgr.ps1. The script cannot be dot-sourced (it opens
 # the window), so each function is cut out of its syntax tree and defined here,
 # with plain objects in place of the window controls.
@@ -9,7 +9,7 @@ BeforeAll {
     $script:ShellPath = Join-Path $script:AppRoot 'start-maintenancewindowmgr.ps1'
     $script:Ast = [System.Management.Automation.Language.Parser]::ParseFile($script:ShellPath, [ref]$null, [ref]$null)
     $wanted = 'Get-MwmPreferences', 'Save-MwmPreferences', 'Get-WindowStatusGlyph', 'Get-CoverageGlyph', 'Get-StatusFilterValue',
-        'Update-Filter', 'Set-StatusText', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt', 'Get-PreviewStartDateTime'
+        'Update-Filter', 'Set-StatusText', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt', 'Get-MonthlyPreviewDate', 'Get-PreviewStartDateTime', 'Get-MonthlyPreviewOccurrences'
     foreach ($n in $wanted) {
         $def = $script:Ast.Find({ param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $n }, $true)
         if (-not $def) { throw "function $n not found in the script" }
@@ -231,5 +231,35 @@ Describe 'Get-PreviewStartDateTime' {
 
     It 'leaves a daily schedule on the start date' {
         (Get-PreviewStartDateTime -State (New-State 'Daily')).ToString('yyyy-MM-dd HH:mm') | Should -Be '2026-11-07 02:30'
+    }
+}
+
+Describe 'Monthly preview' {
+    BeforeAll {
+        function New-State { param($Recurrence, $Dow = 'Tuesday', $Wo = 'Second', $Dom = 1, $Start = '2026-11-07') @{ Recurrence = $Recurrence; StartDate = [datetime]$Start; Hour = 2; Minute = 30; DayOfWeek = $Dow; WeekOrder = $Wo; DayOfMonth = $Dom } }
+    }
+
+    It 'finds the fifth Sunday of November 2026 for the week order Last' {
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByWeekday' 'Sunday' 'Last')).ToString('yyyy-MM-dd') | Should -Be '2026-11-29'
+    }
+
+    It 'keeps the week order Last in every month, not the week of the start date' {
+        $dates = @(Get-MonthlyPreviewOccurrences -State (New-State 'MonthlyByWeekday' 'Friday' 'Last') -Count 3 -Now ([datetime]'2026-11-01')) | ForEach-Object { $_.ToString('yyyy-MM-dd') }
+        $dates -join ',' | Should -Be '2026-11-27,2026-12-25,2027-01-29'
+    }
+
+    It 'keeps the selected day of the month in every month and cuts it only for a short month' {
+        $dates = @(Get-MonthlyPreviewOccurrences -State (New-State 'MonthlyByDate' -Dom 31) -Count 4 -Now ([datetime]'2026-11-01')) | ForEach-Object { $_.ToString('yyyy-MM-dd') }
+        $dates -join ',' | Should -Be '2026-11-30,2026-12-31,2027-01-31,2027-02-28'
+    }
+
+    It 'reads day 0 as the last day of the month' {
+        (Get-PreviewStartDateTime -State (New-State 'MonthlyByDate' -Dom 0)).ToString('yyyy-MM-dd') | Should -Be '2026-11-30'
+    }
+
+    It 'skips dates at or before the current time, as the preview of the editor does' {
+        # Today is 2026-11-10. The start is 2026-11-20 and the day is 5. The first date is 2026-12-05.
+        $dates = @(Get-MonthlyPreviewOccurrences -State (New-State 'MonthlyByDate' -Dom 5 -Start '2026-11-20') -Count 1 -Now ([datetime]'2026-11-10')) | ForEach-Object { $_.ToString('yyyy-MM-dd') }
+        $dates -join ',' | Should -Be '2026-12-05'
     }
 }

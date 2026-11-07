@@ -15,6 +15,8 @@ Use it to set up an account, or to find out why a read or a change is refused.
 | Action | Right |
 |---|---|
 | Start the tool | Read and write in the folder of the script. |
+| Read and reload the templates | Read access to the `Templates` folder. No site access is needed. |
+| Create, edit and delete a template | Read and write access to the `Templates` folder. No site access is needed. |
 | **Refresh** and all views | The Configuration Manager console on the computer, and read access to the SMS Provider and to collections under your Configuration Manager role. |
 | **New Window...**, **Edit...**, **Toggle Enabled**, **Remove...** | The right to modify the collection, which includes its maintenance windows. |
 | **Apply Template...** and **Apply...** | The same right on every target collection. |
