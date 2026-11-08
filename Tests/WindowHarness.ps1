@@ -16,17 +16,15 @@ $script:HarnessRoot = Split-Path -Parent $PSScriptRoot
 $script:HarnessSession = $null
 
 # The guard for every test that opens a window. Window tests run only when the
-# environment variable SUITE_ALLOW_WINDOW_TESTS is 1, and never on the dev PC.
+# environment variable SUITE_ALLOW_WINDOW_TESTS is 1.
 # A test file calls this in BeforeDiscovery and skips its window Describe blocks
-# when Allowed is false. The parameters exist so the guard can be tested.
+# when Allowed is false. The OptIn parameter exists so the guard can be tested.
 function Test-WindowTestsAllowed {
     [CmdletBinding()]
     param(
-        [string]$ComputerName = [Environment]::MachineName,
         [string]$OptIn = $env:SUITE_ALLOW_WINDOW_TESTS
     )
-    if ($ComputerName -ieq 'removed') { return [pscustomobject]@{ Allowed = $false; Reason = 'dev PC (removed): window tests never run here' } }
-    if ($OptIn -ne '1')           { return [pscustomobject]@{ Allowed = $false; Reason = 'SUITE_ALLOW_WINDOW_TESTS is not 1' } }
+    if ($OptIn -ne '1') { return [pscustomobject]@{ Allowed = $false; Reason = 'SUITE_ALLOW_WINDOW_TESTS is not 1' } }
     [pscustomobject]@{ Allowed = $true; Reason = '' }
 }
 

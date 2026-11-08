@@ -1,8 +1,7 @@
 #Requires -Modules Pester
 # Tests of the window-test guard (Test-WindowTestsAllowed in WindowHarness.ps1).
-# The guard keeps window tests off the dev PC (removed) and runs them only when
-# SUITE_ALLOW_WINDOW_TESTS is 1. Most tests inject the computer name and the
-# opt-in value. This file opens no window.
+# The guard runs window tests only when SUITE_ALLOW_WINDOW_TESTS is 1. Most tests
+# inject the opt-in value. This file opens no window.
 
 BeforeDiscovery {
     # Every other test file that can open a window must carry the guard.
@@ -15,51 +14,58 @@ BeforeDiscovery {
 
 BeforeAll {
     . "$PSScriptRoot\WindowHarness.ps1"
-    # Pass the computer name as a variable, so the linter rule against a hard-coded ComputerName stays quiet.
     function Get-Guard {
-        param([string]$Computer, [string]$Value)
-        Test-WindowTestsAllowed -ComputerName $Computer -OptIn $Value
+        param([string]$Value)
+        Test-WindowTestsAllowed -OptIn $Value
+    }
+    # Reads the outermost Describe blocks of a script from its syntax tree, so a comment or a
+    # continuation line cannot fool the check. A Describe inside a control statement (if, foreach)
+    # counts. A Describe nested inside another Describe needs no guard of its own.
+    function Get-TopLevelDescribe {
+        param([string]$Text)
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$null, [ref]$null)
+        $isDescribe = { param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Describe' }
+        foreach ($command in $ast.FindAll($isDescribe, $true)) {
+            $nested = $false
+            for ($p = $command.Parent; $p; $p = $p.Parent) {
+                if (& $isDescribe $p) { $nested = $true; break }
+            }
+            if ($nested) { continue }
+            $elements = $command.CommandElements
+            $guarded = $false
+            for ($i = 1; $i -lt $elements.Count; $i++) {
+                $e = $elements[$i]
+                if ($e -isnot [System.Management.Automation.Language.CommandParameterAst] -or $e.ParameterName -ne 'Skip') { continue }
+                $arg = if ($e.Argument) { $e.Argument } elseif ($i + 1 -lt $elements.Count) { $elements[$i + 1] } else { $null }
+                if ($arg -and ($arg.Extent.Text -replace '\s', '') -eq '(-not$script:WindowGuard.Allowed)') { $guarded = $true }
+            }
+            $name = if ($elements.Count -gt 1 -and $elements[1] -is [System.Management.Automation.Language.StringConstantExpressionAst]) { $elements[1].Value } else { '(unnamed)' }
+            [pscustomobject]@{ Name = $name; Guarded = $guarded }
+        }
+    }
+    function Get-UnguardedDescribe {
+        param([string]$Text)
+        Get-TopLevelDescribe -Text $Text | Where-Object { -not $_.Guarded } | ForEach-Object Name
     }
 }
 
 Describe 'Test-WindowTestsAllowed' {
-    It 'refuses on removed even with the opt-in' {
-        $r = Get-Guard -Computer 'removed' -Value '1'
-        $r.Allowed | Should -BeFalse
-        $r.Reason | Should -Match 'removed'
-    }
-
-    It 'refuses on <Name> in any letter case' -ForEach @(@{ Name = 'removed' }, @{ Name = 'removed' }) {
-        (Get-Guard -Computer $Name -Value '1').Allowed | Should -BeFalse
-    }
-
-    It 'refuses on removed without the opt-in' {
-        (Get-Guard -Computer 'removed' -Value '').Allowed | Should -BeFalse
-    }
-
-    It 'allows another computer with the opt-in 1' {
-        $r = Get-Guard -Computer 'CM01' -Value '1'
+    It 'allows the opt-in 1' {
+        $r = Get-Guard -Value '1'
         $r.Allowed | Should -BeTrue
         $r.Reason | Should -BeNullOrEmpty
     }
 
-    It 'refuses another computer when the opt-in is <Label>, and names the opt-in' -ForEach @(
+    It 'refuses when the opt-in is <Label>, and names the opt-in' -ForEach @(
         @{ Label = 'empty'; Value = '' }
         @{ Label = 'null'; Value = $null }
         @{ Label = '0'; Value = '0' }
         @{ Label = 'true'; Value = 'true' }
+        @{ Label = 'yes'; Value = 'yes' }
     ) {
-        $r = Get-Guard -Computer 'CLIENT01' -Value $Value
+        $r = Get-Guard -Value $Value
         $r.Allowed | Should -BeFalse
-        $r.Reason | Should -Match 'SUITE_ALLOW_WINDOW_TESTS'
-    }
-
-    It 'gives a reason whenever it refuses (<Name>, opt-in "<Value>")' -ForEach @(
-        @{ Name = 'removed'; Value = '1' }
-        @{ Name = 'CM01'; Value = '' }
-        @{ Name = 'CM01'; Value = '0' }
-    ) {
-        (Get-Guard -Computer $Name -Value $Value).Reason | Should -Not -BeNullOrEmpty
+        $r.Reason | Should -Be 'SUITE_ALLOW_WINDOW_TESTS is not 1'
     }
 }
 
@@ -67,9 +73,9 @@ Describe 'Test-WindowTestsAllowed without arguments' {
     BeforeAll { $script:SavedOptIn = $env:SUITE_ALLOW_WINDOW_TESTS }
     AfterAll { $env:SUITE_ALLOW_WINDOW_TESTS = $script:SavedOptIn }
 
-    It 'reads SUITE_ALLOW_WINDOW_TESTS and the machine name by default' {
+    It 'allows when the variable is 1' {
         $env:SUITE_ALLOW_WINDOW_TESTS = '1'
-        (Test-WindowTestsAllowed).Allowed | Should -Be ([Environment]::MachineName -ine 'removed')
+        (Test-WindowTestsAllowed).Allowed | Should -BeTrue
     }
 
     It 'refuses when the variable is 0' {
@@ -82,6 +88,17 @@ Describe 'Test-WindowTestsAllowed without arguments' {
     It 'refuses when the variable is not set' {
         Remove-Item -LiteralPath Env:SUITE_ALLOW_WINDOW_TESTS -ErrorAction SilentlyContinue
         (Test-WindowTestsAllowed).Allowed | Should -BeFalse
+    }
+}
+
+Describe 'Test-WindowTestsAllowed decides on the opt-in only' {
+    It 'has no ComputerName parameter' {
+        (Get-Command Test-WindowTestsAllowed).Parameters.ContainsKey('ComputerName') | Should -BeFalse
+    }
+
+    It 'takes the OptIn parameter and no other parameter of its own' {
+        $own = @((Get-Command Test-WindowTestsAllowed).Parameters.Keys | Where-Object { $_ -notin [System.Management.Automation.PSCmdlet]::CommonParameters })
+        $own | Should -Be @('OptIn')
     }
 }
 
@@ -102,9 +119,60 @@ Describe 'Window test files carry the guard' {
     }
 
     It '<Name> applies the guard to every top-level Describe' -ForEach $script:WindowTestFiles {
-        $describes = @(Get-Content -LiteralPath $Path | Where-Object { $_ -match '^\s*Describe\b' })
-        $describes.Count | Should -BeGreaterThan 0
-        @($describes | Where-Object { $_ -notmatch '-Skip:\(-not \$script:WindowGuard\.Allowed\)' }) | Should -BeNullOrEmpty
+        $text = Get-Content -LiteralPath $Path -Raw
+        @(Get-TopLevelDescribe -Text $text).Count | Should -BeGreaterThan 0
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-UnguardedDescribe reads the syntax tree' {
+    It 'accepts a guard on a continuation line' {
+        $text = "Describe 'a' ``" + [Environment]::NewLine + "    -Skip:(-not `$script:WindowGuard.Allowed) { It 'x' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'accepts the Skip parameter with a space instead of a colon' {
+        $text = "Describe 'a' -Skip (-not `$script:WindowGuard.Allowed) { }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'reports a Describe whose guard text is only in a comment' {
+        $text = "# -Skip:(-not `$script:WindowGuard.Allowed)" + [Environment]::NewLine + "Describe 'a' { }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('a')
+    }
+
+    It 'reports a Describe with another Skip value' {
+        @(Get-UnguardedDescribe -Text "Describe 'a' -Skip:`$false { }") | Should -Be @('a')
+    }
+
+    It 'does not require a nested Describe to repeat the guard' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { Describe 'b' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'reports an unguarded Describe inside an if block' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { }" + [Environment]::NewLine + "if (`$true) { Describe 'b' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('b')
+    }
+
+    It 'reports an unguarded Describe inside a foreach block' {
+        $text = "foreach (`$i in 1..2) { Describe 'c' { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('c')
+    }
+
+    It 'accepts a guarded Describe inside an if block' {
+        $text = "if (`$true) { Describe 'd' -Skip:(-not `$script:WindowGuard.Allowed) { } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'does not require a Describe in an if block inside a Describe to repeat the guard' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { if (`$true) { Describe 'b' { } } }"
+        @(Get-UnguardedDescribe -Text $text) | Should -BeNullOrEmpty
+    }
+
+    It 'reports only the unguarded one of two top-level Describe blocks' {
+        $text = "Describe 'a' -Skip:(-not `$script:WindowGuard.Allowed) { }" + [Environment]::NewLine + "Describe 'b' { }"
+        @(Get-UnguardedDescribe -Text $text) | Should -Be @('b')
     }
 }
 
@@ -123,14 +191,5 @@ Describe 'Get-WpfSession refuses where the guard says no' {
     It 'does not hand out a cached session' {
         $script:HarnessSession = [pscustomobject]@{ RunspaceStateInfo = [pscustomobject]@{ State = 'Opened' } }
         { Get-WpfSession } | Should -Throw '*not allowed*'
-    }
-}
-
-Describe 'Machine identity' {
-    It 'takes the computer name from the machine, not from the COMPUTERNAME variable' {
-        foreach ($f in 'WindowHarness.ps1', '..\Invoke-Checks.ps1') {
-            (Get-Content -LiteralPath (Join-Path $PSScriptRoot $f) -Raw) | Should -Not -Match '\$env:COMPUTERNAME'
-        }
-        (Get-Content -LiteralPath (Join-Path $PSScriptRoot 'WindowHarness.ps1') -Raw) | Should -Match 'MachineName'
     }
 }
