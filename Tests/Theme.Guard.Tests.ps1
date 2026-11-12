@@ -67,9 +67,11 @@ Describe 'Blue backgrounds have white text (a)' {
         foreach ($st in $styles) {
             $trigger = @($st.SelectNodes("*[local-name()='Style.Triggers']/*[local-name()='Trigger']") | Where-Object { $_.GetAttribute('Property') -in 'IsSelected', 'IsHighlighted' })
             $trigger.Count | Should -BeGreaterThan 0
-            $fg = @($trigger[0].SelectNodes("*[local-name()='Setter']") | Where-Object { $_.GetAttribute('Property') -eq 'Foreground' })
-            $fg.Count | Should -Be 1
-            Test-WhiteBrush (Get-SetterValue $fg[0]) | Should -BeTrue
+            foreach ($tr in $trigger) {
+                $fg = @($tr.SelectNodes("*[local-name()='Setter']") | Where-Object { $_.GetAttribute('Property') -eq 'Foreground' })
+                $fg.Count | Should -Be 1
+                Test-WhiteBrush (Get-SetterValue $fg[0]) | Should -BeTrue
+            }
         }
     }
 
@@ -308,36 +310,21 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
 
 Describe 'Every button takes the shared themed style (e)' {
     BeforeAll {
-        function Get-StyleChain {
-            param($Doc, [string]$Key)
-            $guard = 0
-            while ($Key -and $guard -lt 10) {
-                $guard++
-                $st = $Doc.SelectSingleNode(("//*[local-name()='Style'][@*[local-name()='Key']='{0}']" -f $Key))
-                if (-not $st) { return $false }
-                $based = $st.GetAttribute('BasedOn')
-                if ($based -match 'MahApps\.Styles\.Button') { return $true }
-                $Key = if ($based -match 'StaticResource\s+([^\}\s]+)') { $Matches[1] } else { '' }
-            }
-            return $false
-        }
         $script:ShellText = Get-Content -LiteralPath (Join-Path $script:RepoRoot $script:ShellName) -Raw
     }
 
     It 'gives each Button in <_.Source> a style that is based on a MahApps button style' -ForEach $script:XamlDocsD {
-        [xml]$x = $_.Text
-        $bad = foreach ($b in @($x.SelectNodes("//*[local-name()='Button']"))) {
-            $style = $b.GetAttribute('Style')
-            $key = if ($style -match '(?:Static|Dynamic)Resource\s+([^\}\s]+)') { $Matches[1] } else { '' }
-            if (-not $key -or -not (Get-StyleChain -Doc $x -Key $key)) { 'Button {0} has no shared style' -f $b.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml') }
-        }
-        @($bad) | Should -BeNullOrEmpty
+        @(Get-ButtonWithoutSharedStyle -Text $_.Text) | Should -BeNullOrEmpty
     }
 
-    It 'detects a button without a style (the check itself)' {
-        [xml]$x = '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Button x:Name="bare" Content="x"/></Grid>'
-        $b = $x.SelectSingleNode("//*[local-name()='Button']")
-        $b.GetAttribute('Style') | Should -BeNullOrEmpty
+    It 'detects a button without the shared style (the check itself)' {
+        $head = '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">'
+        $bare = $head + '<Button x:Name="bare" Content="x"/></Grid>'
+        $own = $head + '<Grid.Resources><Style x:Key="Own" TargetType="Button"/></Grid.Resources><Button x:Name="own" Style="{StaticResource Own}"/></Grid>'
+        $good = $head + '<Grid.Resources><Style x:Key="Base" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}"/><Style x:Key="Inline" TargetType="Button" BasedOn="{StaticResource Base}"/></Grid.Resources><Button x:Name="good" Style="{StaticResource Inline}"/></Grid>'
+        @(Get-ButtonWithoutSharedStyle -Text $bare).Count | Should -Be 1
+        @(Get-ButtonWithoutSharedStyle -Text $own).Count | Should -Be 1
+        @(Get-ButtonWithoutSharedStyle -Text $good).Count | Should -Be 0
     }
 
     It 'creates no button in code' {

@@ -198,3 +198,29 @@ function Get-ThemeFontTrigger {
         if ($condition -match '(?i)IsDark|DarkMode|IsLight|LightMode|ThemeMode|\bTheme\b|\bDark\b') { $trigger.OuterXml.Substring(0, [Math]::Min(100, $trigger.OuterXml.Length)) }
     }
 }
+
+# True when the style with this key is based, directly or through other styles of the document, on a MahApps button style.
+function Test-StyleBasedOnMahAppsButton {
+    param($Doc, [string]$Key)
+    $guard = 0
+    while ($Key -and $guard -lt 10) {
+        $guard++
+        $st = $Doc.SelectSingleNode(("//*[local-name()='Style'][@*[local-name()='Key']='{0}']" -f $Key))
+        if (-not $st) { return $false }
+        $based = $st.GetAttribute('BasedOn')
+        if ($based -match 'MahApps\.Styles\.Button') { return $true }
+        $Key = if ($based -match 'StaticResource\s+([^\}\s]+)') { $Matches[1] } else { '' }
+    }
+    return $false
+}
+
+# One text per Button that has no Style, or a Style that is not based on a MahApps button style.
+function Get-ButtonWithoutSharedStyle {
+    param([string]$Text)
+    [xml]$x = $Text
+    foreach ($b in @($x.SelectNodes("//*[local-name()='Button']"))) {
+        $style = $b.GetAttribute('Style')
+        $key = if ($style -match '(?:Static|Dynamic)Resource\s+([^\}\s]+)') { $Matches[1] } else { '' }
+        if (-not $key -or -not (Test-StyleBasedOnMahAppsButton -Doc $x -Key $key)) { 'Button {0} has no shared style' -f $b.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml') }
+    }
+}

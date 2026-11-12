@@ -30,7 +30,7 @@ None.
 | `Apply Template: pick at least one target collection.` | Log | The target list is empty. | Add a target. |
 | `Apply Template: no templates loaded. Reload templates first.` | Log | No template file loaded. | Check the `Templates` folder and select **Reload Templates**. |
 | `Template: name required.` | Log | The template has no name. | Type a name. |
-| `Template load failed: <reason>` and `Save Template failed: <reason>` | Log | A template file cannot be read or written. | Read the reason. Check the folder. |
+| `Template load failed. The log file has the details.` and `Save Template failed. The log file has the details.` | Log | A template file cannot be read or written. | Open the log file. Check the folder. |
 | `Export CSV: nothing to export.` and `Export HTML: nothing to export.` | Log | The grid has no rows. | Select **Refresh** or clear the filter. |
 
 The image shows **Refresh** on a computer without the console. The window stays open, the grid stays empty and the log names the cause.

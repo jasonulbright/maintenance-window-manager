@@ -76,7 +76,11 @@ try {
             Invoke-Command $session { param($l) New-Item -ItemType Directory 'C:\guide' -Force | Out-Null; New-Item -ItemType File $l -ErrorAction Stop | Out-Null } -ArgumentList $lockFile -ErrorAction Stop
             $haveLock = $true
         }
-        catch { Start-Sleep -Seconds 30 }
+        catch {
+            # Only an existing lock file means that another capture runs. Any other error stops here.
+            if ($_.Exception.Message -notmatch 'already exists') { throw }
+            Start-Sleep -Seconds 30
+        }
     } until ($haveLock -or (Get-Date) -gt $lockEnd)
     if (-not $haveLock) { throw "Another capture holds $lockFile. This capture waited 60 minutes." }
     foreach ($run in @(@{ Steps = 'steps-guide.ps1'; Prefs = $false }, @{ Steps = 'steps-console-missing.ps1'; Prefs = $true })) {
@@ -125,12 +129,6 @@ try {
         if (-not (Test-Path $log)) { throw "The capture wrote no run.log: $($run.Steps)" }
         Get-Content $log | Where-Object { $_ -match '^\d\d:\d\d:\d\d\s+ERROR' } | ForEach-Object { Write-Warning $_; $failed.Add($_) }
     }
-    # -OutDir receives every captured image and every run log, also when a step failed.
-    if ($OutDir) {
-        New-Item -ItemType Directory $OutDir -Force | Out-Null
-        foreach ($png in @(Get-ChildItem $tmp -Recurse -Filter *.png)) { Copy-Item $png.FullName (Join-Path $OutDir $png.Name) -Force }
-        foreach ($runLog in @(Get-ChildItem $tmp -Recurse -Filter run.log)) { Copy-Item $runLog.FullName (Join-Path $OutDir ($runLog.Directory.Name + '.run.log')) -Force }
-    }
     # A failed step stops the capture before any guide image is replaced.
     if ($failed.Count) { throw ("The capture failed. No image was replaced.`n" + ($failed -join "`n")) }
     $captured = @(Get-ChildItem $tmp -Recurse -Filter *.png)
@@ -147,12 +145,20 @@ try {
 finally {
     # Each cleanup runs on its own, so that a failed cleanup cannot replace the original error.
     if ($session) {
-        try { Invoke-Command $session { param($t) Unregister-ScheduledTask $t -Confirm:$false -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Cleanup of the scheduled task failed: $($_.Exception.Message)" }
         if ($haveLock) {
+            try { Invoke-Command $session { param($t) Unregister-ScheduledTask $t -Confirm:$false -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Cleanup of the scheduled task failed: $($_.Exception.Message)" }
             try { Invoke-Command $session { param($r) Remove-Item $r -Recurse -Force -ErrorAction SilentlyContinue } -ArgumentList $root } catch { Write-Warning "Cleanup of $root failed: $($_.Exception.Message)" }
             try { Invoke-Command $session { param($l) Remove-Item $l -Force -ErrorAction SilentlyContinue } -ArgumentList $lockFile } catch { Write-Warning "Removing $lockFile failed: $($_.Exception.Message)" }
         }
         try { Remove-PSSession $session } catch { Write-Warning "Closing the session failed: $($_.Exception.Message)" }
+    }
+    # -OutDir receives every captured image and every run log, also when a step failed or threw.
+    if ($OutDir) {
+        try {
+            New-Item -ItemType Directory $OutDir -Force | Out-Null
+            foreach ($png in @(Get-ChildItem $tmp -Recurse -Filter *.png)) { Copy-Item $png.FullName (Join-Path $OutDir $png.Name) -Force }
+            foreach ($runLog in @(Get-ChildItem $tmp -Recurse -Filter run.log)) { Copy-Item $runLog.FullName (Join-Path $OutDir ($runLog.Directory.Name + '.run.log')) -Force }
+        } catch { Write-Warning "Copy to $OutDir failed: $($_.Exception.Message)" }
     }
     try { Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue } catch { Write-Warning "Cleanup of $tmp failed: $($_.Exception.Message)" }
 }
