@@ -18,7 +18,7 @@ None.
 
 | Message | Where | Cause | Fix |
 |---|---|---|---|
-| `Refresh: site code and SMS provider must be set in Options first.` | Log | The site code or the provider is empty. | Set both in **Options > Connection**. |
+| `Refresh: site code and SMS Provider must be set in Options first.` | Log | The site code or the provider is empty. | Set both in **Options > Connection**. |
 | `Refresh failed: Failed to connect to site <code> (provider <name>).` | Log | The console is not installed on this computer, or the provider name is wrong or not reachable, or `SMS_ADMIN_UI_PATH` does not point to the `bin\i386` folder of the console. | Check the provider name. Install the console. If it is installed, set `SMS_ADMIN_UI_PATH` to its `bin\i386` folder and start the tool again. |
 | `<action>: refresh first to establish a CM connection.` | Log | No refresh has run. | Select **Refresh**. |
 | `Edit: pick a window first.`, `Toggle: pick a window first.`, `Remove: pick a window first.` | Log | No row is selected. | Select a row. |
@@ -30,7 +30,7 @@ None.
 | `Apply Template: pick at least one target collection.` | Log | The target list is empty. | Add a target. |
 | `Apply Template: no templates loaded. Reload templates first.` | Log | No template file loaded. | Check the `Templates` folder and select **Reload Templates**. |
 | `Template: name required.` | Log | The template has no name. | Type a name. |
-| `Template load failed: <reason>` and `Save Template failed: <reason>` | Log | A template file cannot be read or written. | Read the reason. Check the folder. |
+| `Template load failed. The log file has the details.` and `Save Template failed. The log file has the details.` | Log | A template file cannot be read or written. | Open the log file. Check the folder. |
 | `Export CSV: nothing to export.` and `Export HTML: nothing to export.` | Log | The grid has no rows. | Select **Refresh** or clear the filter. |
 
 The image shows **Refresh** on a computer without the console. The window stays open, the grid stays empty and the log names the cause.

@@ -75,7 +75,7 @@ This guide opened the New, Edit and Apply dialogs and selected **Cancel**. It di
 
 | Message or symptom | Cause | Fix |
 |---|---|---|
-| `Template load failed: <reason>` | A template file is damaged. | Restore or delete the file and restart the tool. |
+| `Template load failed. The log file has the details.` | A template file is damaged. | Open the log file. Restore or delete the file and restart the tool. |
 | `Edit Template: pick a template first.` and `Delete Template: pick a template first.` | No row is selected. | Select a template. |
 
 ## Links

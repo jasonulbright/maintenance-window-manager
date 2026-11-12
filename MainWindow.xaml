@@ -20,7 +20,12 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <ControlTemplate x:Key="SidebarButtonTemplate" TargetType="Button">
+            <!-- One template and one set of button styles for the window and for every dialog. The dialogs
+                 take the styles from this file (Get-SharedStyleXaml in the start script), so they exist once.
+                 The colors come from SuiteCommon (Update-SidebarButtonTheme and Set-ButtonTheme) and from
+                 MahApps resources, never from a literal here. Hover, pressed and disabled change only the
+                 opacity, so they work in both themes. -->
+            <ControlTemplate x:Key="ThemedButtonTemplate" TargetType="Button">
                 <Border x:Name="Bd"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
@@ -33,12 +38,14 @@
                                       SnapsToDevicePixels="True"/>
                 </Border>
                 <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                    </Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True">
+                        <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                    </Trigger>
                     <Trigger Property="IsPressed" Value="True">
-                        <Setter TargetName="Bd" Property="Background">
-                            <Setter.Value>
-                                <SolidColorBrush Color="#3A3A3A"/>
-                            </Setter.Value>
-                        </Setter>
+                        <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
                     </Trigger>
                     <Trigger Property="IsEnabled" Value="False">
                         <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -46,32 +53,69 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate>
 
-            <Style x:Key="ViewButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="Template" Value="{StaticResource SidebarButtonTemplate}"/>
+            <Style x:Key="ThemedButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+                <Setter Property="Template" Value="{StaticResource ThemedButtonTemplate}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+            </Style>
+
+            <Style x:Key="ViewButtonStyle" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
                 <Setter Property="Height" Value="42"/>
                 <Setter Property="Margin" Value="8,3,8,3"/>
                 <Setter Property="Padding" Value="12,0,12,0"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
                 <Setter Property="FontSize" Value="13"/>
                 <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="Background">
-                    <Setter.Value><SolidColorBrush Color="#1E1E1E"/></Setter.Value>
-                </Setter>
-                <Setter Property="BorderBrush">
-                    <Setter.Value><SolidColorBrush Color="#555555"/></Setter.Value>
-                </Setter>
-                <Setter Property="BorderThickness" Value="1"/>
             </Style>
 
             <Style x:Key="OptionsButtonStyle" TargetType="Button" BasedOn="{StaticResource ViewButtonStyle}"/>
 
-            <Style x:Key="SquareInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+            <!-- The primary dialog button: the accent blue with white text. -->
+            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
+
+            <!-- The one secondary style, for Cancel, Browse and the other dialog buttons: a gray fill,
+                 the theme text color and a visible border. It has the size of the primary style. -->
+            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Gray10}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
+
+            <!-- Selected and highlighted items: white text on the accent blue, in both themes. -->
+            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource MahApps.Styles.ComboBoxItem}">
+                <Style.Triggers>
+                    <Trigger Property="IsHighlighted" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style TargetType="ListBoxItem" BasedOn="{StaticResource MahApps.Styles.ListBoxItem}">
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="SquareInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
                 <Setter Property="Height" Value="28"/>
                 <Setter Property="MinWidth" Value="100"/>
                 <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
                 <Setter Property="FontSize" Value="12"/>
             </Style>
 
@@ -117,6 +161,12 @@
 
             <Style x:Key="GridCellStyle" TargetType="DataGridCell" BasedOn="{StaticResource MahApps.Styles.DataGridCell}">
                 <Setter Property="Padding" Value="6,0,6,0"/>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
+                </Style.Triggers>
             </Style>
 
             <Style x:Key="GridHeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource MahApps.Styles.DataGridColumnHeader}">
@@ -171,23 +221,23 @@
                                                IsOn="True"
                                                OnContent="" OffContent=""
                                                MinWidth="0"
-                                               ToolTip="Toggle dark / light theme"/>
+                                               ToolTip="Switch between the dark theme and the light theme."/>
                     </DockPanel>
                 </StackPanel>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <Button x:Name="btnViewWindows"   Content="Windows"   Style="{StaticResource ViewButtonStyle}"
-                                ToolTip="All maintenance windows across every device collection"/>
+                                ToolTip="Show the maintenance windows of all device collections."/>
                         <Button x:Name="btnViewCoverage"  Content="Coverage"  Style="{StaticResource ViewButtonStyle}"
-                                ToolTip="Which collections have / lack maintenance windows -- gap remediation"/>
+                                ToolTip="Show which device collections have maintenance windows."/>
                         <Button x:Name="btnViewTemplates" Content="Templates" Style="{StaticResource ViewButtonStyle}"
-                                ToolTip="Saved schedule templates (Patch Tuesday +N, Daily, Weekly, etc.)"/>
+                                ToolTip="Show the saved schedule templates."/>
 
                         <Button x:Name="btnOptions" Content="Options"
                                 Style="{StaticResource OptionsButtonStyle}"
                                 Margin="8,24,8,3"
-                                ToolTip="Site code, SMS provider, defaults, about"/>
+                                ToolTip="Set the site code and the SMS Provider."/>
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
@@ -207,9 +257,9 @@
 
             <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="16,12,16,10">
                 <StackPanel>
-                    <TextBlock x:Name="txtModuleTitle" Text="Windows" FontSize="18" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="txtModuleTitle" Text="Windows" FontSize="18" FontWeight="Bold"/>
                     <TextBlock x:Name="txtModuleSubtitle"
-                               Text="Every maintenance window across every device collection."
+                               Text="All maintenance windows of all device collections."
                                FontSize="11"
                                TextWrapping="Wrap"
                                Foreground="{DynamicResource MahApps.Brushes.Gray1}"
@@ -232,7 +282,7 @@
                             Content="Refresh"
                             Style="{StaticResource SquareInlineButtonStyle}"
                             MinWidth="120"
-                            ToolTip="Reload from Configuration Manager (or, on the Templates view, reload templates from disk)"/>
+                            ToolTip="Reload the data from the site or the templates from disk."/>
 
                     <TextBox x:Name="txtFilter"
                              Grid.Column="1"
@@ -246,14 +296,14 @@
                               Width="180"
                               Margin="0,0,8,0"
                               FontSize="12"
-                              ToolTip="Limit rows by state">
+                              ToolTip="Limit the rows by state.">
                         <ComboBoxItem Content="All" IsSelected="True"/>
                     </ComboBox>
 
                     <Button x:Name="btnExportCsv"  Grid.Column="3" Content="Export CSV"  Style="{StaticResource SquareInlineButtonStyle}"
-                            ToolTip="Export the active view to CSV"/>
+                            ToolTip="Export the current view to a CSV file."/>
                     <Button x:Name="btnExportHtml" Grid.Column="4" Content="Export HTML" Style="{StaticResource SquareInlineButtonStyle}"
-                            ToolTip="Export the active view to a styled HTML report"/>
+                            ToolTip="Export the current view to an HTML report."/>
                 </Grid>
             </Border>
 
@@ -299,13 +349,13 @@
                         <Border Grid.Row="0" Padding="0,8,0,8">
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="btnNewWindow"     Content="New Window..."     Style="{StaticResource SquareInlineButtonStyle}" MinWidth="130"
-                                        ToolTip="Create a new maintenance window on a target collection"/>
+                                        ToolTip="Create a maintenance window on a device collection."/>
                                 <Button x:Name="btnEditWindow"    Content="Edit..."           Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
-                                        ToolTip="Edit the selected maintenance window"/>
+                                        ToolTip="Edit the selected maintenance window."/>
                                 <Button x:Name="btnToggleEnabled" Content="Toggle Enabled"    Style="{StaticResource SquareInlineButtonStyle}" MinWidth="130"
-                                        ToolTip="Flip the IsEnabled flag on the selected window"/>
+                                        ToolTip="Enable or disable the selected maintenance window."/>
                                 <Button x:Name="btnRemoveWindow"  Content="Remove..."         Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
-                                        ToolTip="Delete the selected maintenance window"/>
+                                        ToolTip="Delete the selected maintenance window."/>
                             </StackPanel>
                         </Border>
 
@@ -315,9 +365,9 @@
                                 <TextBox x:Name="txtWindowProperties" Style="{StaticResource DetailTextStyle}"
                                          Text="Select a maintenance window to see its properties."/>
                             </TabItem>
-                            <TabItem><TabItem.Header><TextBlock Text="Next 5 occurrences" Style="{StaticResource TabHeaderText}" Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/></TabItem.Header>
+                            <TabItem><TabItem.Header><TextBlock Text="Next 5 Occurrences" Style="{StaticResource TabHeaderText}" Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/></TabItem.Header>
                                 <TextBox x:Name="txtNextOccurrences" Style="{StaticResource DetailTextStyle}"
-                                         Text="Select a maintenance window to project its next occurrences."/>
+                                         Text="Select a maintenance window to see its next occurrences."/>
                             </TabItem>
                         </TabControl>
                     </Grid>
@@ -335,7 +385,7 @@
                     <Border Grid.Row="0" Padding="0,8,0,8">
                         <StackPanel Orientation="Horizontal">
                             <Button x:Name="btnApplyTemplateBulk" Content="Apply Template..." Style="{StaticResource SquareInlineButtonStyle}" MinWidth="160"
-                                    ToolTip="Apply a saved schedule template to one or more collections selected on this view"/>
+                                    ToolTip="Apply a saved template to the selected device collections."/>
                         </StackPanel>
                     </Border>
 
@@ -351,7 +401,7 @@
                             <DataGridTextColumn Header="ID"             Width="100" Binding="{Binding CollectionID}"/>
                             <DataGridTextColumn Header="Members"        Width="80"  Binding="{Binding MemberCount}"/>
                             <DataGridTextColumn Header="Windows"        Width="80"  Binding="{Binding WindowCount}"/>
-                            <DataGridTextColumn Header="Built-in"       Width="80"  Binding="{Binding IsBuiltIn}"/>
+                            <DataGridTextColumn Header="Built-In"       Width="80"  Binding="{Binding IsBuiltIn}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -387,22 +437,22 @@
                         <Border DockPanel.Dock="Bottom" Padding="0,8,0,0">
                             <WrapPanel Orientation="Horizontal">
                                 <Button x:Name="btnNewTemplate"     Content="New Template..."   Style="{StaticResource SquareInlineButtonStyle}" MinWidth="140"
-                                        ToolTip="Author a new schedule template"/>
+                                        ToolTip="Create a schedule template."/>
                                 <Button x:Name="btnEditTemplate"    Content="Edit..."           Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
-                                        ToolTip="Edit the selected template"/>
+                                        ToolTip="Edit the selected template."/>
                                 <Button x:Name="btnDeleteTemplate"  Content="Delete..."         Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
-                                        ToolTip="Delete the selected template file"/>
+                                        ToolTip="Delete the selected template file."/>
                                 <Button x:Name="btnApplyTemplateOne" Content="Apply..."         Style="{StaticResource SquareInlineButtonStyle}" MinWidth="100"
-                                        ToolTip="Apply the selected template to one or more collections"/>
+                                        ToolTip="Apply the selected template to device collections."/>
                             </WrapPanel>
                         </Border>
 
                         <StackPanel DockPanel.Dock="Top">
-                            <TextBlock Text="Description" FontSize="11" FontWeight="SemiBold" Margin="0,8,0,4"/>
+                            <TextBlock Text="Description" FontSize="11" FontWeight="Bold" Margin="0,8,0,4"/>
                             <TextBlock x:Name="txtTemplateDescription" TextWrapping="Wrap" FontSize="12"
                                        Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
 
-                            <TextBlock Text="Schedule" FontSize="11" FontWeight="SemiBold" Margin="0,12,0,4"/>
+                            <TextBlock Text="Schedule" FontSize="11" FontWeight="Bold" Margin="0,12,0,4"/>
                         </StackPanel>
 
                         <TextBox x:Name="txtTemplateScheduleSummary"
@@ -431,7 +481,7 @@
                                                Foreground="{DynamicResource MahApps.Brushes.Accent}"/>
                         <TextBlock x:Name="txtProgressTitle"
                                    Text="Loading..."
-                                   FontSize="18" FontWeight="SemiBold"
+                                   FontSize="18" FontWeight="Bold"
                                    HorizontalAlignment="Center"
                                    Margin="0,14,0,0"/>
                         <TextBlock x:Name="txtProgressStep"
@@ -450,8 +500,8 @@
 
             <Border Grid.Row="4">
                 <DockPanel>
-                    <TextBlock x:Name="lblLogOutput" DockPanel.Dock="Top" Text="LOG OUTPUT"
-                               FontSize="10" FontWeight="SemiBold"
+                    <TextBlock x:Name="lblLogOutput" DockPanel.Dock="Top" Text="Log Output"
+                               FontSize="10" FontWeight="Bold"
                                Margin="8,6,0,4"/>
                     <TextBox x:Name="txtLog"
                              IsReadOnly="True"
@@ -467,7 +517,15 @@
 
             <Border Grid.Row="5" Padding="8,4,8,4"
                     Background="{DynamicResource MahApps.Brushes.Gray10}">
-                <TextBlock x:Name="txtStatus" Text="Ready." FontSize="11"/>
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <TextBlock Text="Site Code" FontSize="14" FontWeight="Bold" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="txtSiteCode" Text="" FontSize="12" Margin="0,0,16,0"/>
+                        <TextBlock Text="SMS Provider" FontSize="14" FontWeight="Bold" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="txtSmsProvider" Text="" FontSize="12"/>
+                    </StackPanel>
+                    <TextBlock x:Name="txtStatus" Text="Ready." FontSize="11" VerticalAlignment="Center"/>
+                </DockPanel>
             </Border>
         </Grid>
     </Grid>

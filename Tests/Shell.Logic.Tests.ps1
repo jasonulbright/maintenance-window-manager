@@ -136,13 +136,24 @@ Describe 'Update-StatusBarSummary' {
     AfterAll { Remove-Variable -Name Prefs -Scope Global -ErrorAction SilentlyContinue }
 
     It 'says what to do when <Case>' -ForEach @(
-        @{ Case = 'the site code is missing'; Site = ''; Provider = 'cm01'; Expected = 'Open Options to configure site code and SMS provider' }
-        @{ Case = 'the provider is missing'; Site = 'MCM'; Provider = ''; Expected = 'Open Options to configure site code and SMS provider' }
+        @{ Case = 'the site code is missing'; Site = ''; Provider = 'cm01'; Expected = 'Open Options to configure site code and SMS Provider' }
+        @{ Case = 'the provider is missing'; Site = 'MCM'; Provider = ''; Expected = 'Open Options to configure site code and SMS Provider' }
         @{ Case = 'both are set'; Site = 'MCM'; Provider = 'cm01'; Expected = 'Ready. Click Refresh.' }
     ) {
         $global:Prefs = @{ SiteCode = $Site; SMSProvider = $Provider }
         Update-StatusBarSummary
         $script:StatusText | Should -Be $Expected
+    }
+
+    It 'shows the site code and the SMS Provider values in the status bar boxes' {
+        $script:txtStatusSiteCode = [pscustomobject]@{ Text = '' }
+        $script:txtStatusProvider = [pscustomobject]@{ Text = '' }
+        try {
+            Update-StatusBarSummary
+            $script:txtStatusSiteCode.Text | Should -Be 'MCM'
+            $script:txtStatusProvider.Text | Should -Be 'cm01'
+        }
+        finally { Remove-Variable -Name txtStatusSiteCode, txtStatusProvider -Scope Script -ErrorAction SilentlyContinue }
     }
 
     It 'shows the counts and the refresh time when connected' {

@@ -32,11 +32,13 @@ The [user guide](docs/index.md) walks every view, dialog and setting with images
 3. Click **Options** on the sidebar and set Site Code and SMS Provider.
 4. Click **Refresh** to load every collection and every maintenance window.
 
+Buttons have two looks in both themes. A primary button is blue with white text. A secondary dialog button (Cancel, Browse...) has a gray fill, the theme text color and a visible border.
+
 ## Layout
 
 The shell uses a sidebar layout with three views and an Options modal:
 
-- **Windows** -- master-detail grid of every maintenance window across every collection. Glyph status (enabled vs muted), Collection, Window, Type, Recurrence, human-readable Schedule, Duration, Next Occurrence. Filter by collection or window name + status filter (Enabled / Disabled / SoftwareUpdates / TaskSequences). Detail tabs: Properties, projected Next 5 occurrences. Action bar: New Window, Edit, Toggle Enabled, Remove.
+- **Windows** -- master-detail grid of every maintenance window across every collection. Glyph status (enabled vs muted), Collection, Window, Type, Recurrence, human-readable Schedule, Duration, Next Occurrence. Filter by collection or window name + status filter (Enabled / Disabled / SoftwareUpdates / TaskSequences). Detail tabs: Properties, projected Next 5 Occurrences. Action bar: New Window, Edit, Toggle Enabled, Remove.
 - **Coverage** -- per-collection gap analysis. Glyph: check for collections with at least one window, warn for those with zero. Multi-select rows + **Apply Template...** rolls a saved schedule out to many collections in one shot.
 - **Templates** -- 5 baseline schedule templates ship with the app (Daily After Hours, Monthly First Saturday, Patch Tuesday +3 days, Patch Tuesday +7 days, Weekly Sunday 2 AM). Edit any of them, or author your own with **New Template**.
 
@@ -51,7 +53,7 @@ Embedded in New Window, Edit Window, and the Template Editor. Recurrence options
 - **Monthly by Weekday** -- pick week order (First / Second / Third / Fourth / Last) + day-of-week
 - **Patch Tuesday +N days** -- shifts each month's second-Tuesday by an offset
 
-Subpanels appear/disappear with the recurrence choice. The **Next 5 occurrences** preview re-projects on every keystroke so you can see exactly what the schedule will fire as before you commit.
+Subpanels appear/disappear with the recurrence choice. The **Next 5 Occurrences** preview re-projects on every keystroke so you can see exactly what the schedule will fire as before you commit.
 
 ## Workflows
 

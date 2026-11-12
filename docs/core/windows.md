@@ -24,7 +24,7 @@ Use it to read the maintenance windows of the site and to change them.
 
 ![The properties of a window](../images/window-properties.png)
 
-3. Select the **Next 5 occurrences** tab. It shows the next five start times of the window.
+3. Select the **Next 5 Occurrences** tab. It shows the next five start times of the window.
 
 ![The next five occurrences](../images/window-occurrences.png)
 

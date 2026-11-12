@@ -122,6 +122,18 @@ $xamlPath = Join-Path $PSScriptRoot 'MainWindow.xaml'
 $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
+# The button, item and dialog styles live once, in MainWindow.xaml. Each dialog takes them here:
+# the marker below sits in the Resources of the dialog XAML and is replaced by the shared styles.
+$script:SharedStyleMarker = '<!--SHARED_STYLES-->'
+function Get-SharedStyleXaml {
+    $keys = 'ThemedButtonTemplate', 'ThemedButtonStyle', 'DialogAccentButton', 'DialogButton'
+    $nodes = @($xaml.SelectNodes("//*[local-name()='ResourceDictionary']/*[local-name()='ControlTemplate' or local-name()='Style']") | Where-Object {
+            $key = $_.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml')
+            ($key -in $keys) -or (-not $key -and $_.GetAttribute('TargetType') -in 'ComboBoxItem', 'ListBoxItem')
+        })
+    return (($nodes | ForEach-Object { $_.OuterXml }) -join [Environment]::NewLine)
+}
+
 $txtAppTitle        = $window.FindName('txtAppTitle')
 $txtVersion         = $window.FindName('txtVersion')
 # Installed version: the script header is the single source of truth for the
@@ -179,6 +191,8 @@ $txtProgressStep  = $window.FindName('txtProgressStep')
 $lblLogOutput = $window.FindName('lblLogOutput')
 $txtLog       = $window.FindName('txtLog')
 $txtStatus    = $window.FindName('txtStatus')
+$txtStatusSiteCode = $window.FindName('txtSiteCode')
+$txtStatusProvider = $window.FindName('txtSmsProvider')
 
 $null = $txtAppTitle, $txtVersion
 
@@ -220,17 +234,24 @@ $script:ViewButtons = @(
 )
 $script:ActiveView = 'Windows'
 
+# Every button that is not a sidebar button takes the shared button theme (SuiteCommon Set-ButtonTheme).
+$script:WorkflowButtons = @($btnRefresh, $btnExportCsv, $btnExportHtml, $btnNewWindow, $btnEditWindow, $btnToggleEnabled, $btnRemoveWindow,
+    $btnApplyTemplateBulk, $btnNewTemplate, $btnEditTemplate, $btnDeleteTemplate, $btnApplyTemplateOne)
+
 Initialize-SuiteTheme -Window $window `
     -IsDarkGetter { [bool]$global:Prefs['DarkMode'] } `
     -ActiveViewGetter { $script:ActiveView } `
     -ViewButtons $script:ViewButtons `
     -OptionsButton $btnOptions `
-    -LogLabel $lblLogOutput
+    -LogLabel $lblLogOutput `
+    -WorkflowButtons $script:WorkflowButtons `
+    -OptionsButtons @()
 
 $__startIsDark = [bool]$global:Prefs['DarkMode']
 $toggleTheme.IsOn = $__startIsDark
 $txtThemeLabel.Text = if ($__startIsDark) { 'Dark Theme' } else { 'Light Theme' }
 Update-SidebarButtonTheme
+Set-ButtonTheme
 
 $toggleTheme.Add_Toggled({
     $isDark = [bool]$toggleTheme.IsOn
@@ -244,6 +265,7 @@ $toggleTheme.Add_Toggled({
     $global:Prefs['DarkMode'] = $isDark
     Save-MwmPreferences -Prefs $global:Prefs
     Update-SidebarButtonTheme
+    Set-ButtonTheme
     Update-TitleBarBrushes
     Add-LogLine ('Theme: {0}' -f $(if ($isDark) { 'dark' } else { 'light' }))
 })
@@ -252,9 +274,9 @@ $toggleTheme.Add_Toggled({
 # View switching.
 # =============================================================================
 $script:ViewMeta = @{
-    'Windows'   = @{ Title = 'Windows';   Subtitle = 'Every maintenance window across every device collection.' }
-    'Coverage'  = @{ Title = 'Coverage';  Subtitle = 'Which collections have / lack maintenance windows -- gap remediation. Multi-select rows for bulk apply.' }
-    'Templates' = @{ Title = 'Templates'; Subtitle = 'Saved schedule templates. Apply one to a target collection or to many collections at once from the Coverage view.' }
+    'Windows'   = @{ Title = 'Windows';   Subtitle = 'All maintenance windows of all device collections.' }
+    'Coverage'  = @{ Title = 'Coverage';  Subtitle = 'Device collections with and without maintenance windows. Select several rows for a bulk apply.' }
+    'Templates' = @{ Title = 'Templates'; Subtitle = 'Saved schedule templates. Apply one to a device collection, or apply it to several on the Coverage view.' }
 }
 
 function Set-ActiveView {
@@ -399,7 +421,7 @@ function Update-StatusBarSummary {
     if ($script:IsConnectedFromBg -and $global:Prefs.SiteCode) {
         $parts += "Connected to $($global:Prefs.SiteCode)"
     } elseif (-not $global:Prefs.SiteCode -or -not $global:Prefs.SMSProvider) {
-        $parts += 'Open Options to configure site code and SMS provider'
+        $parts += 'Open Options to configure site code and SMS Provider'
     } else {
         $parts += 'Ready. Click Refresh.'
     }
@@ -410,6 +432,9 @@ function Update-StatusBarSummary {
         $parts += ('last refresh {0}' -f $script:LastRefreshTime.ToString('HH:mm:ss'))
     }
     Set-StatusText ($parts -join '   |   ')
+    # The site code and the SMS Provider values show in normal text. Their titles are bold 14 pt.
+    if ($txtStatusSiteCode) { $txtStatusSiteCode.Text = [string]$global:Prefs.SiteCode }
+    if ($txtStatusProvider) { $txtStatusProvider.Text = [string]$global:Prefs.SMSProvider }
 }
 
 # =============================================================================
@@ -507,7 +532,8 @@ $gridWindows.Add_SelectionChanged({
                 $txtNextOccurrences.Text = (($next | ForEach-Object { $_.ToString('yyyy-MM-dd  ddd  HH:mm') }) -join [Environment]::NewLine)
             }
         } catch {
-            $txtNextOccurrences.Text = ('Could not project occurrences: {0}' -f $_.Exception.Message)
+            Write-Log ('Could not project occurrences: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+            $txtNextOccurrences.Text = 'The next occurrences are not available. The log file has the details.'
         }
     } else {
         $txtNextOccurrences.Text = '(occurrence projection unavailable for this row)'
@@ -573,8 +599,8 @@ function Invoke-Refresh {
     }
 
     if (-not $global:Prefs.SiteCode -or -not $global:Prefs.SMSProvider) {
-        Add-LogLine 'Refresh: site code and SMS provider must be set in Options first.'
-        Set-StatusText 'Open Options to configure site code and SMS provider, then refresh.'
+        Add-LogLine 'Refresh: site code and SMS Provider must be set in Options first.'
+        Set-StatusText 'Open Options to configure site code and SMS Provider, then refresh.'
         return
     }
 
@@ -586,10 +612,11 @@ function Invoke-Refresh {
         Done     = $false
         Result   = $null
         ErrorMsg = $null
+        ErrorDetail = $null
     })
 
     $btnRefresh.IsEnabled = $false
-    $txtProgressTitle.Text = 'Loading maintenance windows'
+    $txtProgressTitle.Text = 'Loading Maintenance Windows'
     $txtProgressStep.Text  = 'Connecting...'
     $progressOverlay.Visibility = [System.Windows.Visibility]::Visible
     Add-LogLine ('Refresh: site={0} provider={1}' -f $global:Prefs.SiteCode, $global:Prefs.SMSProvider)
@@ -643,7 +670,8 @@ function Invoke-Refresh {
             }
         }
         catch {
-            $State.ErrorMsg = $_.Exception.Message
+            $State.ErrorDetail = $_.Exception.Message
+            $State.ErrorMsg = 'The log file has the details.'
         }
         finally {
             $State.Done = $true
@@ -670,6 +698,7 @@ function Invoke-Refresh {
                 $progressOverlay.Visibility = [System.Windows.Visibility]::Collapsed
                 $btnRefresh.IsEnabled = $true
                 $script:IsConnectedFromBg = $false
+                Write-Log ('Refresh failed: {0}' -f $(if ($script:BgState.ErrorDetail) { $script:BgState.ErrorDetail } else { $script:BgState.ErrorMsg })) -Level ERROR -Quiet
                 Add-LogLine ('Refresh failed: {0}' -f $script:BgState.ErrorMsg)
                 Set-StatusText 'Refresh failed.'
                 return
@@ -712,7 +741,8 @@ function Invoke-Refresh {
             try {
                 [void](Connect-CMSite -SiteCode $global:Prefs.SiteCode -SMSProvider $global:Prefs.SMSProvider)
             } catch {
-                Add-LogLine ('UI-thread CM connect: {0}' -f $_.Exception.Message)
+                Write-Log ('UI-thread CM connect failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+                Add-LogLine 'The connection for the actions failed. The log file has the details.'
             }
 
             Update-Filter
@@ -739,7 +769,8 @@ function Invoke-LoadTemplates {
         Add-LogLine ('Loaded {0} templates.' -f @($script:Templates).Count)
         Update-StatusBarSummary
     } catch {
-        Add-LogLine ('Template load failed: {0}' -f $_.Exception.Message)
+        Write-Log ('Template load failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+        Add-LogLine 'Template load failed. The log file has the details.'
     }
 }
 
@@ -765,7 +796,7 @@ $script:ScheduleEditorXamlFragment = @'
         <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <TextBlock Grid.Row="0" Text="Recurrence" FontSize="11" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+    <TextBlock Grid.Row="0" Text="Recurrence" FontSize="11" FontWeight="Bold" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
     <ComboBox x:Name="cboScheduleRecurrence" Grid.Row="1" FontSize="12">
         <ComboBoxItem Content="One-time"/>
         <ComboBoxItem Content="Daily"/>
@@ -782,15 +813,15 @@ $script:ScheduleEditorXamlFragment = @'
             <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0">
-            <TextBlock Text="Start Date" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Start Date" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <DatePicker x:Name="dpScheduleStartDate" FontSize="12" HorizontalAlignment="Left" Width="180"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Margin="12,0,0,0">
-            <TextBlock Text="Hour" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Hour" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <TextBox x:Name="txtScheduleHour" FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Margin="8,0,0,0">
-            <TextBlock Text="Minute" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Minute" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <TextBox x:Name="txtScheduleMinute" FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
     </Grid>
@@ -802,19 +833,19 @@ $script:ScheduleEditorXamlFragment = @'
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0">
-            <TextBlock Text="Duration Hours" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Duration Hours" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <TextBox x:Name="txtDurationHours" FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Margin="8,0,0,0">
-            <TextBlock Text="Duration Min" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Duration Minutes" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <TextBox x:Name="txtDurationMinutes" FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
-        <CheckBox x:Name="chkScheduleUtc" Grid.Column="2" Content="UTC time" VerticalAlignment="Bottom" Margin="16,0,0,4" FontSize="12"/>
+        <CheckBox x:Name="chkScheduleUtc" Grid.Column="2" Content="UTC Time" VerticalAlignment="Bottom" Margin="16,0,0,4" FontSize="12"/>
     </Grid>
 
     <StackPanel x:Name="panelDayOfWeek" Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Visible">
         <StackPanel>
-            <TextBlock Text="Day of Week" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Day of Week" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <ComboBox x:Name="cboDayOfWeek" FontSize="12" Width="140">
                 <ComboBoxItem Content="Sunday"/>
                 <ComboBoxItem Content="Monday"/>
@@ -828,7 +859,7 @@ $script:ScheduleEditorXamlFragment = @'
     </StackPanel>
 
     <StackPanel x:Name="panelWeekOrder" Grid.Row="5" Margin="0,12,0,0" Visibility="Collapsed">
-        <TextBlock Text="Week Order" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+        <TextBlock Text="Week Order" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
         <ComboBox x:Name="cboWeekOrder" FontSize="12" Width="140" HorizontalAlignment="Left">
             <ComboBoxItem Content="First"/>
             <ComboBoxItem Content="Second" IsSelected="True"/>
@@ -839,17 +870,17 @@ $script:ScheduleEditorXamlFragment = @'
     </StackPanel>
 
     <StackPanel x:Name="panelMonthlyDate" Grid.Row="6" Margin="0,12,0,0" Visibility="Collapsed">
-        <TextBlock Text="Day of Month (1-31)" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+        <TextBlock Text="Day of Month (1-31)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
         <TextBox x:Name="txtDayOfMonth" FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
     </StackPanel>
 
     <StackPanel x:Name="panelPatchTuesday" Grid.Row="7" Margin="0,12,0,0" Visibility="Collapsed">
-        <TextBlock Text="Days After Patch Tuesday (0-30)" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+        <TextBlock Text="Days After Patch Tuesday (0-30)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
         <TextBox x:Name="txtPatchOffset" FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
     </StackPanel>
 
     <StackPanel Grid.Row="8" Margin="0,16,0,0">
-        <TextBlock Text="Next 5 occurrences" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
+        <TextBlock Text="Next 5 Occurrences" FontSize="11" FontWeight="Bold" Margin="0,0,0,4"/>
         <Border BorderThickness="1" BorderBrush="{DynamicResource MahApps.Brushes.Gray8}"
                 Background="{DynamicResource MahApps.Brushes.ThemeBackground}" Padding="8" MinHeight="100">
             <TextBlock x:Name="txtSchedulePreview" FontSize="11" FontFamily="Cascadia Code, Consolas, Courier New"
@@ -1072,7 +1103,8 @@ function Update-SchedulePreview {
             $tx.Text = (($next | ForEach-Object { $_.ToString('yyyy-MM-dd  ddd  HH:mm') }) -join [Environment]::NewLine)
         }
     } catch {
-        $tx.Text = ('Preview unavailable: {0}' -f $_.Exception.Message)
+        Write-Log ('Schedule preview failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+        $tx.Text = 'The preview is not available. The log file has the details.'
     }
 }
 
@@ -1141,16 +1173,7 @@ function Show-NewWindowDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -1166,7 +1189,7 @@ function Show-NewWindowDialog {
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Text="Target Collection" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Target Collection" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -1186,12 +1209,12 @@ function Show-NewWindowDialog {
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0">
-                <TextBlock Text="Window Name" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Window Name" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtWindowName" FontSize="12" Padding="6,4,6,4"/>
             </StackPanel>
 
             <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                <TextBlock Text="Window Type" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Window Type" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <ComboBox x:Name="cboWindowType" FontSize="12" Width="280" HorizontalAlignment="Left">
                     <ComboBoxItem Content="Any" IsSelected="True"/>
                     <ComboBoxItem Content="SoftwareUpdatesOnly"/>
@@ -1201,7 +1224,7 @@ function Show-NewWindowDialog {
 
             <CheckBox x:Name="chkWindowEnabled" Grid.Row="3" Margin="0,12,0,0" Content="Enabled" IsChecked="True" FontSize="12"/>
 
-            <TextBlock Grid.Row="4" Text="Schedule" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Grid.Row="4" Text="Schedule" FontSize="13" FontWeight="Bold" Margin="0,16,0,4"/>
 
             <ContentControl x:Name="scheduleHost" Grid.Row="5"/>
 
@@ -1214,7 +1237,7 @@ function Show-NewWindowDialog {
 </Controls:MetroWindow>
 "@
 
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
@@ -1357,7 +1380,8 @@ function Show-NewWindowDialog {
             $dlg.DialogResult = $true
             $dlg.Close()
         } catch {
-            Add-LogLine ('New / Edit Window failed: {0}' -f $_.Exception.Message)
+            Write-Log ('New / Edit Window failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+            Add-LogLine 'New / Edit Window failed. The log file has the details.'
         }
     })
     $btnCancel.Add_Click({ $dlg.DialogResult = $false; $dlg.Close() })
@@ -1396,16 +1420,7 @@ function Show-TemplateEditorDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -1420,20 +1435,20 @@ function Show-TemplateEditorDialog {
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0">
-                <TextBlock Text="Template Name" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Template Name" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtTemplateName" FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. Patch Tuesday + 7"/>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0">
-                <TextBlock Text="Description" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Description" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtTemplateDesc" FontSize="12" Padding="6,4,6,4"
                          AcceptsReturn="True" TextWrapping="Wrap" Height="60"
                          VerticalScrollBarVisibility="Auto"/>
             </StackPanel>
 
             <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                <TextBlock Text="Window Type" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Window Type" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <ComboBox x:Name="cboTplWindowType" FontSize="12" Width="280" HorizontalAlignment="Left">
                     <ComboBoxItem Content="Any" IsSelected="True"/>
                     <ComboBoxItem Content="SoftwareUpdatesOnly"/>
@@ -1441,7 +1456,7 @@ function Show-TemplateEditorDialog {
                 </ComboBox>
             </StackPanel>
 
-            <TextBlock Grid.Row="3" Text="Schedule" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,4"/>
+            <TextBlock Grid.Row="3" Text="Schedule" FontSize="13" FontWeight="Bold" Margin="0,16,0,4"/>
             <ContentControl x:Name="scheduleHost" Grid.Row="4"/>
 
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
@@ -1453,7 +1468,7 @@ function Show-TemplateEditorDialog {
 </Controls:MetroWindow>
 "@
 
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
@@ -1543,7 +1558,8 @@ function Show-TemplateEditorDialog {
             $dlg.DialogResult = $true
             $dlg.Close()
         } catch {
-            Add-LogLine ('Save Template failed: {0}' -f $_.Exception.Message)
+            Write-Log ('Save Template failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+            Add-LogLine 'Save Template failed. The log file has the details.'
         }
     })
     $btnCancel.Add_Click({ $dlg.DialogResult = $false; $dlg.Close() })
@@ -1588,16 +1604,7 @@ function Show-ApplyTemplateDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <Grid Margin="20,16,20,12">
@@ -1611,17 +1618,17 @@ function Show-ApplyTemplateDialog {
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Template" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Template" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <ComboBox x:Name="cboApplyTemplate" FontSize="12" DisplayMemberPath="Name"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,12,0,0">
-            <TextBlock Text="Window Name (override -- blank uses template name)" FontSize="11" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+            <TextBlock Text="Window Name (Optional)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             <TextBox x:Name="txtApplyWindowName" FontSize="12" Padding="6,4,6,4"
-                     Controls:TextBoxHelper.Watermark="(blank = use template name)"/>
+                     Controls:TextBoxHelper.Watermark="Uses the template name when blank"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="2" Text="Target Collections" FontSize="11" FontWeight="SemiBold" Margin="0,16,0,4"/>
+        <TextBlock Grid.Row="2" Text="Target Collections" FontSize="11" FontWeight="Bold" Margin="0,16,0,4"/>
         <Border Grid.Row="3" BorderThickness="1"
                 BorderBrush="{DynamicResource MahApps.Brushes.Gray8}"
                 Background="{DynamicResource MahApps.Brushes.ThemeBackground}">
@@ -1645,7 +1652,7 @@ function Show-ApplyTemplateDialog {
     </Grid>
 </Controls:MetroWindow>
 '@
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
@@ -1711,13 +1718,15 @@ function Show-ApplyTemplateDialog {
             $failCount = @($results | Where-Object { -not $_.Success }).Count
             Add-LogLine ('Apply Template "{0}": {1} succeeded, {2} failed.' -f $tpl.Name, $okCount, $failCount)
             foreach ($r in $results | Where-Object { -not $_.Success }) {
-                Add-LogLine ('  failed on {0}: {1}' -f $r.CollectionName, $r.Error)
+                Write-Log ('Apply Template "{0}" failed on {1}: {2}' -f $tpl.Name, $r.CollectionName, $r.Error) -Level ERROR -Quiet
+                Add-LogLine ('  failed on {0}. The log file has the details.' -f $r.CollectionName)
             }
             $script:ApplyResult = ($okCount -gt 0)
             $dlg.DialogResult = $true
             $dlg.Close()
         } catch {
-            Add-LogLine ('Apply Template threw: {0}' -f $_.Exception.Message)
+            Write-Log ('Apply Template failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+            Add-LogLine 'Apply Template failed. The log file has the details.'
         }
     })
     $btnCancel.Add_Click({ $dlg.DialogResult = $false; $dlg.Close() })
@@ -1751,7 +1760,8 @@ $btnRemoveWindow.Add_Click({
             Invoke-Refresh
         }
     } catch {
-        Add-LogLine ('Remove failed: {0}' -f $_.Exception.Message)
+        Write-Log ('Remove failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+        Add-LogLine 'Remove failed. The log file has the details.'
     }
 })
 $btnApplyTemplateBulk.Add_Click({
@@ -1780,7 +1790,8 @@ $btnDeleteTemplate.Add_Click({
             Invoke-LoadTemplates
         }
     } catch {
-        Add-LogLine ('Delete Template failed: {0}' -f $_.Exception.Message)
+        Write-Log ('Delete Template failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+        Add-LogLine 'Delete Template failed. The log file has the details.'
     }
 })
 $btnApplyTemplateOne.Add_Click({
@@ -1799,7 +1810,8 @@ $btnToggleEnabled.Add_Click({
         Add-LogLine ('Toggled "{0}" on {1} -> {2}' -f $row.WindowName, $row.CollectionName, $(if ($newState) { 'Enabled' } else { 'Disabled' }))
         Invoke-Refresh
     } catch {
-        Add-LogLine ('Toggle failed: {0}' -f $_.Exception.Message)
+        Write-Log ('Toggle failed: {0}' -f $_.Exception.Message) -Level ERROR -Quiet
+        Add-LogLine 'Toggle failed. The log file has the details.'
     }
 })
 
@@ -1858,23 +1870,14 @@ function Show-OptionsDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="CategoryRowStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+            <!--SHARED_STYLES-->
+            <Style x:Key="CategoryRowStyle" TargetType="Button" BasedOn="{StaticResource DialogButton}">
                 <Setter Property="Height" Value="36"/>
+                <Setter Property="MinWidth" Value="0"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
                 <Setter Property="Padding" Value="14,0,14,0"/>
                 <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
                 <Setter Property="Margin" Value="0"/>
-            </Style>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -1897,21 +1900,21 @@ function Show-OptionsDialog {
         <Border Grid.Column="1" Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
         <Grid Grid.Column="2" Grid.Row="0" Margin="20,16,20,16">
             <StackPanel x:Name="paneConnection" Visibility="Visible">
-                <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <TextBlock Text="Site Code" FontSize="11" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="Bold" Margin="0,0,0,10"/>
+                <TextBlock Text="Site Code" FontSize="14" FontWeight="Bold" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtSiteCode" FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. MCM" Width="120" HorizontalAlignment="Left"/>
-                <TextBlock Text="SMS Provider FQDN" FontSize="11" Margin="0,12,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                <TextBlock Text="SMS Provider" FontSize="14" FontWeight="Bold" Margin="0,12,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtSmsProvider" FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. cm01.contoso.com"/>
-                <TextBlock Text="Used for the CM PSDrive root. Maintenance Window Manager performs both reads (Get-CMMaintenanceWindow) and writes (New / Set / Remove) -- the account running this app needs the matching CM permissions."
+                <TextBlock Text="The app uses these values to connect to the site. The account that runs the app needs ConfigMgr permissions to read and to change maintenance windows."
                            FontSize="11" TextWrapping="Wrap" Margin="0,16,0,0"
                            Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             </StackPanel>
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
-                <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
-                <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="SemiBold"/>
-                <TextBlock Text="Browse, create, edit, toggle, and bulk-apply Configuration Manager maintenance windows across every device collection. Schedule editor supports One-time / Daily / Weekly / Monthly-by-Date / Monthly-by-Weekday / Patch Tuesday +N days, with a live next-5-occurrences preview."
+                <TextBlock Text="About" FontSize="13" FontWeight="Bold" Margin="0,0,0,10"/>
+                <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="Bold"/>
+                <TextBlock Text="Show, create, edit, enable, disable and delete ConfigMgr maintenance windows of device collections. Apply saved schedule templates to many device collections. The schedule editor supports One-time, Daily, Weekly, Monthly by Date, Monthly by Weekday and Patch Tuesday plus N days. It shows the next five occurrences."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."
                            FontSize="11" Margin="0,16,0,0" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
@@ -1926,7 +1929,7 @@ function Show-OptionsDialog {
     </Grid>
 </Controls:MetroWindow>
 '@
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
@@ -2002,7 +2005,7 @@ $window.Add_Loaded({
     Update-TitleBarBrushes
     Update-ActionBarVisibility
     Update-StatusBarSummary
-    Add-LogLine 'Maintenance Window Manager ready. Configure Site / Provider in Options, then click Refresh.'
+    Add-LogLine 'Maintenance Window Manager ready. Configure Site Code and SMS Provider in Options, then click Refresh.'
     Invoke-LoadTemplates
 })
 
