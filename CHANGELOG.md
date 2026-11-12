@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [2026.11.12.0018] - 2026-11-12
+
+## 1 shared button style for every button, with a 3:1 dark border
 
 ### Fixed
 
@@ -11,6 +13,7 @@
 - Show field labels and titles in bold. Use Title Case for the Log Output label, the Next 5 Occurrences tab and label, the Built-In column and the Duration Minutes label.
 - Use one short sentence for each tooltip, in ConfigMgr terms. Use the term SMS Provider in every text.
 - Show no raw exception text in the window. The log file has the details.
+- Raise the border of the buttons in the dark theme to 3:1 contrast.
 
 ### Added
 
@@ -21,6 +24,7 @@
 
 - Refresh the vendored SuiteCommon library to release 2026.11.11.0080 with the later border change.
 - Show the site code and the SMS Provider at the right end of the status bar.
+- Retake the guide images in both themes.
 
 ## [2026.11.07.0017] - 2026-11-07
 
