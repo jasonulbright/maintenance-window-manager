@@ -14,12 +14,7 @@ function Get-KnownContrastDefect {
     switch ($Theme) {
         'dark' {
             @(
-                'btnApplyTemplateBulk:DisabledText', 'btnApplyTemplateOne:DisabledText', 'btnDeleteTemplate:DisabledText',
-                'btnEditTemplate:DisabledText', 'btnEditWindow:DisabledText', 'btnExportCsv:DisabledText',
-                'btnExportHtml:DisabledText', 'btnNewTemplate:DisabledText', 'btnNewWindow:DisabledText',
-                'btnRefresh:DisabledText',
-                'btnRemoveWindow:DisabledText', 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText',
-                'btnViewTemplates:DisabledText', 'btnViewWindows:DisabledText',
+                'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText', 'btnViewWindows:DisabledText',
                 'titlebar:inactive', 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
