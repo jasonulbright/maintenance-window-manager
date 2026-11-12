@@ -69,18 +69,25 @@ New-Item -ItemType Directory $tmp | Out-Null
 $session = $null
 try {
     $session = New-PSSession -ComputerName $Target -Credential $LabCredential
-    # One capture at a time per lab computer. New-Item fails when the lock file exists, so the capture waits.
+    # One capture at a time per lab computer. The remote step creates the lock file with CreateNew. An existing file
+    # raises an IOException, which the step turns into the answer 'busy'. A lock file older than 60 minutes is stale
+    # and is removed. Any other error stops the capture. The answer does not depend on a message text.
     $lockEnd = (Get-Date).AddMinutes(60)
     do {
-        try {
-            Invoke-Command $session { param($l) New-Item -ItemType Directory 'C:\guide' -Force | Out-Null; New-Item -ItemType File $l -ErrorAction Stop | Out-Null } -ArgumentList $lockFile -ErrorAction Stop
-            $haveLock = $true
-        }
-        catch {
-            # Only an existing lock file means that another capture runs. Any other error stops here.
-            if ($_.Exception.Message -notmatch 'already exists') { throw }
-            Start-Sleep -Seconds 30
-        }
+        $answer = Invoke-Command $session {
+            param($l)
+            New-Item -ItemType Directory 'C:\guide' -Force -ErrorAction Stop | Out-Null
+            try {
+                $fs = [System.IO.File]::Open($l, [System.IO.FileMode]::CreateNew)
+                $fs.Close()
+                return 'acquired'
+            }
+            catch [System.IO.IOException] {
+                if (((Get-Date) - (Get-Item -LiteralPath $l -ErrorAction Stop).LastWriteTime).TotalMinutes -gt 60) { Remove-Item -LiteralPath $l -Force -ErrorAction Stop; return 'stale' }
+                return 'busy'
+            }
+        } -ArgumentList $lockFile -ErrorAction Stop
+        if ($answer -eq 'acquired') { $haveLock = $true } else { Start-Sleep -Seconds 30 }
     } until ($haveLock -or (Get-Date) -gt $lockEnd)
     if (-not $haveLock) { throw "Another capture holds $lockFile. This capture waited 60 minutes." }
     foreach ($run in @(@{ Steps = 'steps-guide.ps1'; Prefs = $false }, @{ Steps = 'steps-console-missing.ps1'; Prefs = $true })) {

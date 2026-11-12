@@ -57,6 +57,9 @@ BeforeAll {
                 param($n)
                 $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $n.Value -match '^\s*<Controls:MetroWindow'
             }, $true) | ForEach-Object { $_.Value })
+    # The dialogs take the shared styles from MainWindow.xaml at run time. The marker stands for them here.
+    . "$PSScriptRoot\ThemeGuardHelpers.ps1"
+    $script:DialogXaml = @($script:DialogXaml | ForEach-Object { $_.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml)) })
 
     $script:Measured = @{}
     foreach ($case in @(
@@ -144,7 +147,8 @@ Describe 'Dialog windows' -Skip:(-not $script:WindowGuard.Allowed) {
         $r = Invoke-WpfSta -Arguments @{ Xaml = $script:DialogXaml[$Index] } -Script {
             [xml]$x = $Arguments.Xaml
             $w = [System.Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $x))
-            $names = [regex]::Matches($Arguments.Xaml, 'x:Name="([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+            # A name inside a ControlTemplate belongs to the template, not to the window.
+            $names = [regex]::Matches(($Arguments.Xaml -replace '(?s)<ControlTemplate.*?</ControlTemplate>', ''), 'x:Name="([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
             [PSCustomObject]@{ Type = $w.GetType().Name; Missing = @($names | Where-Object { -not $w.FindName($_) }); Count = @($names).Count }
         }
         $r.Type | Should -Be 'MetroWindow'

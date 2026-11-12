@@ -17,7 +17,7 @@ function Get-RelativeRepoPath {
 function Test-BlueBrush {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
-    if ($Value -match 'MahApps\.Brushes\.(Accent\d*|AccentBase|Highlight|Button\.Flat\.Background\.Pressed)\b') { return $true }
+    if ($Value -match 'MahApps\.(Brushes|Colors)\.(Accent\d*|AccentBase|Highlight|Button\.Flat\.Background\.Pressed)\b') { return $true }
     if ($Value -match '(?i)^\s*(blue|dodgerblue|royalblue|steelblue|navy|mediumblue|darkblue|cornflowerblue)\s*$') { return $true }
     if ($Value -match '^\s*#(?:[0-9A-Fa-f]{2})?([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})\s*$') {
         $r = [Convert]::ToInt32($Matches[1], 16) / 255.0
@@ -57,6 +57,18 @@ function Get-AppScriptFile {
     return $files
 }
 
+# The styles that the dialogs take from MainWindow.xaml. The start script holds the same list (Get-SharedStyleXaml).
+$script:SharedStyleMarker = '<!--SHARED_STYLES-->'
+$script:SharedStyleKey = @('ThemedButtonTemplate', 'ThemedButtonStyle', 'DialogAccentButton', 'DialogButton')
+function Get-SharedStyleXaml {
+    [xml]$main = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'MainWindow.xaml') -Raw
+    $nodes = @($main.SelectNodes("//*[local-name()='ResourceDictionary']/*[local-name()='ControlTemplate' or local-name()='Style']") | Where-Object {
+            $key = $_.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml')
+            ($key -in $script:SharedStyleKey) -or (-not $key -and $_.GetAttribute('TargetType') -in 'ComboBoxItem', 'ListBoxItem')
+        })
+    return (($nodes | ForEach-Object { $_.OuterXml }) -join [Environment]::NewLine)
+}
+
 # Every XAML document of the app: the XAML files and the XAML here-strings of the scripts.
 # A here-string counts as XAML when its first tag declares the WPF namespace.
 function Get-XamlDocument {
@@ -71,6 +83,8 @@ function Get-XamlDocument {
             $text = $m.Groups[1].Value
             if ($text -notmatch ('^\s*<[^>]*xmlns="' + [regex]::Escape($script:XamlNamespace) + '"')) { continue }
             $i++
+            # The dialogs take the shared styles from MainWindow.xaml, as the start script does at run time.
+            $text = $text.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
             $docs += [PSCustomObject]@{ Source = ('{0} here-string {1}' -f $f.Name, $i); Text = $text }
         }
     }
@@ -160,27 +174,25 @@ function Get-FieldTitleElement {
     return $null
 }
 
-# Lists every hard-coded color in the Setters and the attributes of the given nodes.
-# Only a DynamicResource or a TemplateBinding is allowed.
+# Lists every hard-coded color in the Setters, the attributes and the nested brushes of the given nodes.
+# Only a DynamicResource or a TemplateBinding is allowed. A property is a brush property when its name ends in
+# Brush, Background, Foreground, Fill or Stroke, also as Border.Background or as an attached name.
+# Any Color attribute that is not a DynamicResource or a TemplateBinding is a literal, wherever it sits.
 function Get-HardColor {
     param($Nodes, [string]$Label)
-    $brushProps = 'Background|Foreground|BorderBrush|Fill|Stroke|OpacityMask|CaretBrush|SelectionBrush'
+    $brushProp = '(^|[.:])\w*(Brush|Background|Foreground|Fill|Stroke)$'
+    $allowed = '^\{(DynamicResource|TemplateBinding)\b'
     foreach ($n in $Nodes) {
         foreach ($setter in @($n.SelectNodes('descendant-or-self::*[local-name()="Setter"]'))) {
-            if ($setter.GetAttribute('Property') -notmatch ('^(' + $brushProps + ')$')) { continue }
+            if ($setter.GetAttribute('Property') -notmatch $brushProp) { continue }
             $v = $setter.GetAttribute('Value')
-            if ($v) {
-                if ($v -notmatch '^\{(DynamicResource|TemplateBinding)\b') { '{0}: Setter {1}="{2}"' -f $Label, $setter.GetAttribute('Property'), $v }
-            }
-            else {
-                foreach ($c in @($setter.SelectNodes('descendant::*[@Color]'))) {
-                    if ($c.GetAttribute('Color') -notmatch '^\{DynamicResource\b') { '{0}: Setter {1} holds the color {2}' -f $Label, $setter.GetAttribute('Property'), $c.GetAttribute('Color') }
-                }
-            }
+            if ($v -and $v -notmatch $allowed) { '{0}: Setter {1}="{2}"' -f $Label, $setter.GetAttribute('Property'), $v }
         }
         foreach ($el in @($n.SelectNodes('descendant-or-self::*[not(local-name()="Setter")]'))) {
             foreach ($attr in @($el.Attributes)) {
-                if ($attr.LocalName -match ('^(' + $brushProps + ')$') -and $attr.Value -notmatch '^\{(DynamicResource|TemplateBinding)\b') { '{0}: {1} {2}="{3}"' -f $Label, $el.LocalName, $attr.LocalName, $attr.Value }
+                if ($attr.Name -match '^xmlns' -or $attr.NamespaceURI -eq 'http://www.w3.org/2000/xmlns/') { continue }
+                if ($attr.LocalName -match $brushProp -and $attr.Value -notmatch $allowed) { '{0}: {1} {2}="{3}"' -f $Label, $el.LocalName, $attr.LocalName, $attr.Value }
+                elseif ($attr.LocalName -eq 'Color' -and $attr.Value -notmatch $allowed) { '{0}: {1} holds the color {2}' -f $Label, $el.LocalName, $attr.Value }
             }
         }
     }

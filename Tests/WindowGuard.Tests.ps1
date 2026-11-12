@@ -8,7 +8,7 @@ BeforeDiscovery {
     # Same scope as Invoke-Checks.ps1: nested folders count, the lab scripts do not run as tests.
     $script:RepoRoot = Split-Path -Parent $PSScriptRoot
     $script:WindowTestFiles = @(Get-ChildItem -LiteralPath $script:RepoRoot -Filter '*.Tests.ps1' -File -Recurse |
-            Where-Object { $_.Name -ne 'WindowGuard.Tests.ps1' -and $_.FullName -notlike '*\Tests\Lab\*' -and $_.FullName -notlike '*\.git\*' -and (Get-Content -LiteralPath $_.FullName -Raw) -match 'Invoke-WpfSta|New-WpfWindow|ShowDialog|\.Show\(\)' } |
+            Where-Object { $rel = $_.FullName.Substring($script:RepoRoot.Length + 1); $_.Name -ne 'WindowGuard.Tests.ps1' -and $rel -notlike 'Tests\Lab\*' -and $rel -notlike '.git\*' -and $rel -notlike '.claude\*' -and (Get-Content -LiteralPath $_.FullName -Raw) -match 'Invoke-WpfSta|New-WpfWindow|ShowDialog|\.Show\(\)' } |
             ForEach-Object { @{ Name = $_.FullName.Substring($script:RepoRoot.Length + 1); Path = $_.FullName } })
 }
 

@@ -5,6 +5,7 @@
 ### Fixed
 
 - Show white text on every blue background in the light theme: selected grid rows, highlighted list items and the buttons of the window and the dialogs.
+- Use one primary and one secondary dialog button style, defined once in MainWindow.xaml. The secondary style (Cancel, Browse...) has a gray fill, the theme text color and a visible border.
 - Use theme brushes only in the sidebar button styles. The sidebar buttons keep their look in both themes.
 - Show the Site Code and SMS Provider titles in bold at 14 pt in the Options dialog and in the status bar, in both themes. The values keep the body style.
 - Show field labels and titles in bold. Use Title Case for the Log Output label, the Next 5 Occurrences tab and label, the Built-In column and the Duration Minutes label.

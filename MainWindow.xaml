@@ -20,7 +20,12 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <ControlTemplate x:Key="SidebarButtonTemplate" TargetType="Button">
+            <!-- One template and one set of button styles for the window and for every dialog. The dialogs
+                 take the styles from this file (Get-SharedStyleXaml in the start script), so they exist once.
+                 The colors come from SuiteCommon (Update-SidebarButtonTheme and Set-ButtonTheme) and from
+                 MahApps resources, never from a literal here. Hover, pressed and disabled change only the
+                 opacity, so they work in both themes. -->
+            <ControlTemplate x:Key="ThemedButtonTemplate" TargetType="Button">
                 <Border x:Name="Bd"
                         Background="{TemplateBinding Background}"
                         BorderBrush="{TemplateBinding BorderBrush}"
@@ -33,12 +38,14 @@
                                       SnapsToDevicePixels="True"/>
                 </Border>
                 <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Bd" Property="Opacity" Value="0.85"/>
+                    </Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True">
+                        <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                    </Trigger>
                     <Trigger Property="IsPressed" Value="True">
-                        <Setter TargetName="Bd" Property="Background">
-                            <Setter.Value>
-                                <SolidColorBrush Color="{DynamicResource MahApps.Colors.AccentBase}"/>
-                            </Setter.Value>
-                        </Setter>
+                        <Setter TargetName="Bd" Property="Opacity" Value="0.7"/>
                     </Trigger>
                     <Trigger Property="IsEnabled" Value="False">
                         <Setter TargetName="Bd" Property="Opacity" Value="0.5"/>
@@ -46,22 +53,42 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate>
 
-            <Style x:Key="ViewButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="Template" Value="{StaticResource SidebarButtonTemplate}"/>
+            <Style x:Key="ThemedButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+                <Setter Property="Template" Value="{StaticResource ThemedButtonTemplate}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
+            </Style>
+
+            <Style x:Key="ViewButtonStyle" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
                 <Setter Property="Height" Value="42"/>
                 <Setter Property="Margin" Value="8,3,8,3"/>
                 <Setter Property="Padding" Value="12,0,12,0"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
                 <Setter Property="FontSize" Value="13"/>
                 <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                <Setter Property="BorderThickness" Value="1"/>
             </Style>
 
             <Style x:Key="OptionsButtonStyle" TargetType="Button" BasedOn="{StaticResource ViewButtonStyle}"/>
+
+            <!-- The primary dialog button: the accent blue with white text. -->
+            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
+
+            <!-- The one secondary style, for Cancel, Browse and the other dialog buttons: a gray fill,
+                 the theme text color and a visible border. It has the size of the primary style. -->
+            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Gray10}"/>
+                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+            </Style>
 
             <!-- Selected and highlighted items: white text on the accent blue, in both themes. -->
             <Style TargetType="ComboBoxItem" BasedOn="{StaticResource MahApps.Styles.ComboBoxItem}">
@@ -70,14 +97,25 @@
                         <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
                         <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
                     </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+            <Style TargetType="ListBoxItem" BasedOn="{StaticResource MahApps.Styles.ListBoxItem}">
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
+                    </Trigger>
                 </Style.Triggers>
             </Style>
 
-            <Style x:Key="SquareInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+            <Style x:Key="SquareInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
                 <Setter Property="Height" Value="28"/>
                 <Setter Property="MinWidth" Value="100"/>
                 <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
                 <Setter Property="FontSize" Value="12"/>
             </Style>
 

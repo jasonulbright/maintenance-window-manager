@@ -122,6 +122,18 @@ $xamlPath = Join-Path $PSScriptRoot 'MainWindow.xaml'
 $reader = New-Object System.Xml.XmlNodeReader $xaml
 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
+# The button, item and dialog styles live once, in MainWindow.xaml. Each dialog takes them here:
+# the marker below sits in the Resources of the dialog XAML and is replaced by the shared styles.
+$script:SharedStyleMarker = '<!--SHARED_STYLES-->'
+function Get-SharedStyleXaml {
+    $keys = 'ThemedButtonTemplate', 'ThemedButtonStyle', 'DialogAccentButton', 'DialogButton'
+    $nodes = @($xaml.SelectNodes("//*[local-name()='ResourceDictionary']/*[local-name()='ControlTemplate' or local-name()='Style']") | Where-Object {
+            $key = $_.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml')
+            ($key -in $keys) -or (-not $key -and $_.GetAttribute('TargetType') -in 'ComboBoxItem', 'ListBoxItem')
+        })
+    return (($nodes | ForEach-Object { $_.OuterXml }) -join [Environment]::NewLine)
+}
+
 $txtAppTitle        = $window.FindName('txtAppTitle')
 $txtVersion         = $window.FindName('txtVersion')
 # Installed version: the script header is the single source of truth for the
@@ -234,20 +246,6 @@ Initialize-SuiteTheme -Window $window `
     -LogLabel $lblLogOutput `
     -WorkflowButtons $script:WorkflowButtons `
     -OptionsButtons @()
-
-# A dialog button that is not an accent button takes the look of a themed toolbar button, so it matches in both themes.
-function Set-DialogButtonTheme {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Mutates in-window brush properties only.')]
-    param([Parameter(Mandatory)]$Dialog, [Parameter(Mandatory)][string[]]$Name)
-    foreach ($n in $Name) {
-        $b = $Dialog.FindName($n)
-        if (-not $b) { continue }
-        $b.Background  = $btnRefresh.Background
-        $b.BorderBrush = $btnRefresh.BorderBrush
-        if ($btnRefresh.ReadLocalValue([System.Windows.Controls.Control]::ForegroundProperty) -eq [System.Windows.DependencyProperty]::UnsetValue) { $b.ClearValue([System.Windows.Controls.Control]::ForegroundProperty) }
-        else { $b.Foreground = $btnRefresh.Foreground }
-    }
-}
 
 $__startIsDark = [bool]$global:Prefs['DarkMode']
 $toggleTheme.IsOn = $__startIsDark
@@ -673,7 +671,7 @@ function Invoke-Refresh {
         }
         catch {
             $State.ErrorDetail = $_.Exception.Message
-            $State.ErrorMsg = 'The refresh failed.'
+            $State.ErrorMsg = 'The log file has the details.'
         }
         finally {
             $State.Done = $true
@@ -1175,26 +1173,7 @@ function Show-NewWindowDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <!-- Selected and highlighted items: white text on the accent blue, in both themes. -->
-            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource MahApps.Styles.ComboBoxItem}">
-                <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -1258,13 +1237,12 @@ function Show-NewWindowDialog {
 </Controls:MetroWindow>
 "@
 
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
     Install-TitleBarDragFallback -Window $dlg
     Set-DialogTheme -Dialog $dlg
-    Set-DialogButtonTheme -Dialog $dlg -Name 'btnPickTargetColl', 'btnCancel'
 
     # Inject the schedule editor fragment into the placeholder ContentControl.
     [xml]$scheduleXaml = $script:ScheduleEditorXamlFragment
@@ -1442,26 +1420,7 @@ function Show-TemplateEditorDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <!-- Selected and highlighted items: white text on the accent blue, in both themes. -->
-            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource MahApps.Styles.ComboBoxItem}">
-                <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -1509,13 +1468,12 @@ function Show-TemplateEditorDialog {
 </Controls:MetroWindow>
 "@
 
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
     Install-TitleBarDragFallback -Window $dlg
     Set-DialogTheme -Dialog $dlg
-    Set-DialogButtonTheme -Dialog $dlg -Name 'btnCancel'
 
     [xml]$scheduleXaml = $script:ScheduleEditorXamlFragment
     $sReader = New-Object System.Xml.XmlNodeReader $scheduleXaml
@@ -1646,34 +1604,7 @@ function Show-ApplyTemplateDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <!-- Selected and highlighted items: white text on the accent blue, in both themes. -->
-            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource MahApps.Styles.ComboBoxItem}">
-                <Style.Triggers>
-                    <Trigger Property="IsHighlighted" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-            <Style TargetType="ListBoxItem" BasedOn="{StaticResource MahApps.Styles.ListBoxItem}">
-                <Style.Triggers>
-                    <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
+            <!--SHARED_STYLES-->
         </ResourceDictionary>
     </Window.Resources>
     <Grid Margin="20,16,20,12">
@@ -1721,13 +1652,12 @@ function Show-ApplyTemplateDialog {
     </Grid>
 </Controls:MetroWindow>
 '@
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
     Install-TitleBarDragFallback -Window $dlg
     Set-DialogTheme -Dialog $dlg
-    Set-DialogButtonTheme -Dialog $dlg -Name 'btnAddTarget', 'btnRemoveTarget', 'btnCancel'
 
     $cboApplyTemplate  = $dlg.FindName('cboApplyTemplate')
     $txtApplyWindowName = $dlg.FindName('txtApplyWindowName')
@@ -1940,24 +1870,14 @@ function Show-OptionsDialog {
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Dark.Steel.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="CategoryRowStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
+            <!--SHARED_STYLES-->
+            <Style x:Key="CategoryRowStyle" TargetType="Button" BasedOn="{StaticResource DialogButton}">
                 <Setter Property="Height" Value="36"/>
+                <Setter Property="MinWidth" Value="0"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
                 <Setter Property="Padding" Value="14,0,14,0"/>
                 <Setter Property="FontSize" Value="13"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
                 <Setter Property="Margin" Value="0"/>
-            </Style>
-            <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}">
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
-            </Style>
-            <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square.Accent}">
-                <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
-                <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
-                <Setter Property="Margin" Value="0,0,8,0"/>
-                <Setter Property="Controls:ControlsHelper.ContentCharacterCasing" Value="Normal"/>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -2009,13 +1929,12 @@ function Show-OptionsDialog {
     </Grid>
 </Controls:MetroWindow>
 '@
-    [xml]$dx = $dlgXaml
+    [xml]$dx = $dlgXaml.Replace($script:SharedStyleMarker, (Get-SharedStyleXaml))
     $reader2 = New-Object System.Xml.XmlNodeReader $dx
     $dlg = [System.Windows.Markup.XamlReader]::Load($reader2)
     $dlg.Owner = $window
     Install-TitleBarDragFallback -Window $dlg
     Set-DialogTheme -Dialog $dlg
-    Set-DialogButtonTheme -Dialog $dlg -Name 'btnCatConnection', 'btnCatAbout', 'btnCancel'
 
     $btnCatConnection = $dlg.FindName('btnCatConnection')
     $btnCatAbout      = $dlg.FindName('btnCatAbout')

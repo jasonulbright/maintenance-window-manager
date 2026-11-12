@@ -36,6 +36,7 @@ Describe 'Blue backgrounds have white text (a)' {
 
     It 'recognizes blue and white brushes' {
         Test-BlueBrush '{DynamicResource MahApps.Brushes.Accent}' | Should -BeTrue
+        Test-BlueBrush '{DynamicResource MahApps.Colors.AccentBase}' | Should -BeTrue
         Test-BlueBrush '#0078D4' | Should -BeTrue
         Test-BlueBrush '#1E1E1E' | Should -BeFalse
         Test-BlueBrush '#3A3A3A' | Should -BeFalse
@@ -56,6 +57,7 @@ Describe 'Blue backgrounds have white text (a)' {
         @{ Target = 'ViewDataGridRow'; Kind = 'key' }
         @{ Target = 'GridCellStyle'; Kind = 'key' }
         @{ Target = 'ComboBoxItem'; Kind = 'type' }
+        @{ Target = 'ListBoxItem'; Kind = 'type' }
     ) {
         $doc = @($script:XamlDocs | Where-Object { $_.Source -eq 'MainWindow.xaml' })[0]
         [xml]$x = $doc.Text
@@ -67,6 +69,7 @@ Describe 'Blue backgrounds have white text (a)' {
         foreach ($st in $styles) {
             $trigger = @($st.SelectNodes("*[local-name()='Style.Triggers']/*[local-name()='Trigger']") | Where-Object { $_.GetAttribute('Property') -in 'IsSelected', 'IsHighlighted' })
             $trigger.Count | Should -BeGreaterThan 0
+            if ($Target -eq 'ComboBoxItem') { @($trigger | ForEach-Object { $_.GetAttribute('Property') } | Sort-Object) | Should -Be @('IsHighlighted', 'IsSelected') }
             foreach ($tr in $trigger) {
                 $fg = @($tr.SelectNodes("*[local-name()='Setter']") | Where-Object { $_.GetAttribute('Property') -eq 'Foreground' })
                 $fg.Count | Should -Be 1
@@ -88,8 +91,8 @@ Describe 'Blue backgrounds have white text (a)' {
                 $st.Count | Should -Be 1 -Because ('{0} needs a {1} style' -f $d.Source, $type)
                 if ($type -eq 'ListBoxItem') { $listStyles++ }
                 $setters = @($st[0].SelectNodes('.//*[local-name()="Trigger"]/*[local-name()="Setter"]') | Where-Object { $_.GetAttribute('Property') -eq 'Foreground' })
-                $setters.Count | Should -Be 1
-                Test-WhiteBrush (Get-SetterValue $setters[0]) | Should -BeTrue
+                $setters.Count | Should -BeGreaterThan 0
+                foreach ($se in $setters) { Test-WhiteBrush (Get-SetterValue $se) | Should -BeTrue }
             }
         }
         $listStyles | Should -BeGreaterOrEqual 1
@@ -229,6 +232,7 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
             param($Ast, [string]$Name)
             @($Ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq $Name }, $true)).Count
         }
+        Add-Type -AssemblyName PresentationFramework, WindowsBase
         . ([scriptblock]::Create((Get-SuiteFunction 'Set-ThemeForeground').Extent.Text))
     }
 
@@ -295,6 +299,23 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
         $text | Should -Not -Match '\$box\.FontWeight'
     }
 
+    It 'bolds the section titles of the main window and the dialogs' {
+        $titles = 'Description', 'Schedule', 'Next 5 Occurrences', 'Target Collections', 'Log Output', 'Configuration Manager Connection', 'About'
+        $found = 0
+        $bad = foreach ($d in $script:XamlDocs) {
+            [xml]$x = $d.Text
+            foreach ($t in @($x.SelectNodes("//*[local-name()='TextBlock'][@Text]"))) {
+                if ($titles -notcontains $t.GetAttribute('Text')) { continue }
+                # A tab header takes its weight from the style: bold when the tab is selected.
+                if ($t.GetAttribute('Style')) { continue }
+                $found++
+                if ($t.GetAttribute('FontWeight') -ne 'Bold') { '{0}: {1} is not bold' -f $d.Source, $t.GetAttribute('Text') }
+            }
+        }
+        $found | Should -BeGreaterOrEqual 8
+        @($bad) | Should -BeNullOrEmpty
+    }
+
     It 'bolds the field titles of the dialogs and the main window' {
         # A field title is a TextBlock with FontSize 11 and the gray brush that sits above or before a box. It is bold.
         $bad = foreach ($d in $script:XamlDocs) {
@@ -348,22 +369,57 @@ Describe 'Every button takes the shared themed style (e)' {
         $script:ShellText | Should -Match '(?m)^\s+Set-ButtonTheme'
     }
 
-    It 'themes every button of each dialog: an accent style or Set-DialogButtonTheme' {
+    It 'gives every dialog button the primary or the one secondary style' {
         $docs = @($script:XamlDocs | Where-Object { $_.Source -like "$($script:ShellName) here-string*" -and $_.Text -match 'MetroWindow' })
         $docs.Count | Should -BeGreaterOrEqual 4
-        $called = ([regex]::Matches($script:ShellText, 'Set-DialogButtonTheme\s+-Dialog\s+\$dlg\s+-Name\s+([^\r\n]+)') | ForEach-Object { $_.Groups[1].Value }) -join ' '
         $bad = foreach ($d in $docs) {
             [xml]$x = $d.Text
-            foreach ($b in @($x.SelectNodes("//*[local-name()='Button']"))) {
+            $buttons = @($x.SelectNodes("//*[local-name()='Button']"))
+            $buttons.Count | Should -BeGreaterThan 1
+            foreach ($b in $buttons) {
                 $name = $b.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml')
-                $style = $b.GetAttribute('Style')
-                $key = if ($style -match 'StaticResource\s+([^\}\s]+)') { $Matches[1] } else { '' }
-                $st = $x.SelectSingleNode(("//*[local-name()='Style'][@*[local-name()='Key']='{0}']" -f $key))
-                $accent = $st -and $st.GetAttribute('BasedOn') -match 'Accent'
-                if (-not $accent -and $called -notmatch ("'{0}'" -f $name)) { '{0}: {1} is not themed' -f $d.Source, $name }
+                $key = if ($b.GetAttribute('Style') -match 'StaticResource\s+([^\}\s]+)') { $Matches[1] } else { '' }
+                $ok = $false
+                $guard = 0
+                while ($key -and $guard -lt 5 -and -not $ok) {
+                    $guard++
+                    if ($key -in 'DialogButton', 'DialogAccentButton') { $ok = $true; break }
+                    $st = $x.SelectSingleNode(("//*[local-name()='Style'][@*[local-name()='Key']='{0}']" -f $key))
+                    $key = if ($st -and $st.GetAttribute('BasedOn') -match 'StaticResource\s+([^\}\s]+)') { $Matches[1] } else { '' }
+                }
+                if (-not $ok) { '{0}: {1} has neither the primary nor the secondary dialog style' -f $d.Source, $name }
             }
         }
         @($bad) | Should -BeNullOrEmpty
+    }
+
+    It 'defines the dialog styles once, in MainWindow.xaml, and in no dialog' {
+        $shell = Get-Content -LiteralPath (Join-Path $script:RepoRoot $script:ShellName) -Raw
+        $shell | Should -Not -Match 'x:Key="(DialogButton|DialogAccentButton|ThemedButtonStyle)"'
+        ([regex]::Matches($shell, [regex]::Escape($script:SharedStyleMarker))).Count | Should -BeGreaterOrEqual 4
+        ([regex]::Matches($shell, 'Replace\(\$script:SharedStyleMarker')).Count | Should -BeGreaterOrEqual 4
+        $shell | Should -Not -Match 'Set-DialogButtonTheme'
+        $shell | Should -Match 'function Get-SharedStyleXaml'
+        foreach ($k in $script:SharedStyleKey) { $shell | Should -Match ([regex]::Escape($k)) }
+    }
+
+    It 'gives the secondary style a gray fill, readable theme text, a visible border and the size of the primary style' {
+        [xml]$x = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'MainWindow.xaml') -Raw
+        function Get-StyleSetter($key) {
+            $st = $x.SelectSingleNode(("//*[local-name()='Style'][@*[local-name()='Key']='{0}']" -f $key))
+            $st | Should -Not -BeNullOrEmpty -Because $key
+            $h = @{}
+            foreach ($se in @($st.SelectNodes("*[local-name()='Setter']"))) { $h[$se.GetAttribute('Property')] = Get-SetterValue $se }
+            $h
+        }
+        $sec = Get-StyleSetter 'DialogButton'
+        $pri = Get-StyleSetter 'DialogAccentButton'
+        $sec['Background'] | Should -Match 'MahApps\.Brushes\.Gray'
+        $sec['Foreground'] | Should -Match 'MahApps\.Brushes\.ThemeForeground'
+        $sec['BorderBrush'] | Should -Match 'MahApps\.Brushes\.ThemeForeground'
+        $sec['Height'] | Should -Be $pri['Height']
+        $sec['MinWidth'] | Should -Be $pri['MinWidth']
+        Test-WhiteBrush $pri['Foreground'] | Should -BeTrue
     }
 
     It 'sets no color literal in any Style or ControlTemplate of <_.Source>' -ForEach $script:XamlDocsD {
@@ -380,10 +436,14 @@ Describe 'Every button takes the shared themed style (e)' {
     }
 
     It 'detects a color literal in a style, a template and an attribute (the check itself)' {
-        [xml]$x = '<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Style x:Key="S" TargetType="Button"><Setter Property="Foreground" Value="White"/><Setter Property="Background"><Setter.Value><SolidColorBrush Color="#1E1E1E"/></Setter.Value></Setter><Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/></Style><ControlTemplate x:Key="T" TargetType="Button"><Border BorderBrush="#555555" Background="{TemplateBinding Background}"/></ControlTemplate></ResourceDictionary>'
+        [xml]$x = '<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><Style x:Key="S" TargetType="Button"><Setter Property="Foreground" Value="White"/><Setter Property="Background"><Setter.Value><SolidColorBrush Color="#1E1E1E"/></Setter.Value></Setter><Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Accent}"/></Style><ControlTemplate x:Key="T" TargetType="Button"><Border BorderBrush="#555555" Background="{TemplateBinding Background}"><Border.Background><SolidColorBrush Color="#123456"/></Border.Background></Border></ControlTemplate></ResourceDictionary>'
         $nodes = @($x.SelectNodes('//*[local-name()="Style" or local-name()="ControlTemplate"]'))
         $found = @(Get-HardColor -Nodes $nodes -Label 'sample')
-        $found.Count | Should -Be 3
+        $found.Count | Should -Be 4
+        ($found -join ' ') | Should -Match '#123456'
+        $ok = '<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" TargetType="Button"><Border><Border.Background><SolidColorBrush Color="{DynamicResource MahApps.Colors.AccentBase}"/></Border.Background></Border></ControlTemplate>'
+        [xml]$y = $ok
+        @(Get-HardColor -Nodes @($y.DocumentElement) -Label 'ok').Count | Should -Be 0
         ($found -join ' ') | Should -Match 'White'
         ($found -join ' ') | Should -Match '#1E1E1E'
         ($found -join ' ') | Should -Match '#555555'

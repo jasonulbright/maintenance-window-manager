@@ -65,7 +65,7 @@ if (-not $SkipLint) {
     # Test files pass state to mock bodies through a global variable, and they define fake window controls that the code under test reads by name. Both are intended.
     $testOnlyExclude = 'PSAvoidGlobalVars', 'PSUseDeclaredVarsMoreThanAssignments'
     $findings = @(foreach ($t in $targets) {
-        if ($t.FullName -like '*\Tests\*') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
+        if ($t.FullName.Substring($root.Length + 1) -like 'Tests\*') { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings -ExcludeRule $testOnlyExclude }
         else { Invoke-ScriptAnalyzer -Path $t.FullName -Settings $settings }
     })
     $blocking = @($findings | Where-Object { $_.Severity -in 'Error', 'Warning' })
@@ -77,7 +77,7 @@ if (-not $SkipLint) {
 # ---- 2. Tests and coverage -------------------------------------------------
 $cfg = New-PesterConfiguration
 $testFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.Tests.ps1' -File |
-        Where-Object { $_.FullName -notlike '*\Tests\Lab\*' -and $_.FullName -notlike '*\.git\*' })
+        Where-Object { $rel = $_.FullName.Substring($root.Length + 1); $rel -notlike 'Tests\Lab\*' -and $rel -notlike '.git\*' -and $rel -notlike '.claude\*' })
 if ($testFiles.Count -eq 0) { Write-Host 'No test file found.'; exit 1 }
 if ($SkipWindow) { $testFiles = @($testFiles | Where-Object { $_.Name -ne 'Window.Tests.ps1' }) }
 $cfg.Run.Path = $testFiles.FullName
