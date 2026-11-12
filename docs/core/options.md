@@ -23,7 +23,7 @@ Select **Options** in the sidebar.
 | Field | Meaning |
 |---|---|
 | **Site Code** | The site code, for example `MCM`. |
-| **SMS Provider FQDN** | The server with the SMS Provider role. The tool uses it for the PSDrive root. |
+| **SMS Provider** | The FQDN of the server with the SMS Provider role. The tool uses it for the site drive. |
 
 ![The Connection page](../images/options-connection.png)
 
@@ -35,7 +35,7 @@ The page shows the version and a short description.
 
 ### Theme
 
-The **Dark Theme** switch at the bottom of the sidebar changes the theme. The tool keeps the choice.
+The **Dark Theme** switch at the bottom of the sidebar changes the theme. The tool keeps the choice. The theme changes colors only. Font size, weight and style stay the same.
 
 ![The Windows view in the light theme](../images/light-windows.png)
 

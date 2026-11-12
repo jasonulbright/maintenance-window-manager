@@ -5,7 +5,7 @@
 #
 # Text must reach 4.5:1 and a control border 3:1, enabled and disabled, in both
 # themes. The causes are shared by every suite tool: the SuiteCommon palette
-# (sidebar button border #555555 on #1E1E1E is 2.06:1), the MahApps disabled
+# (the disabled-button text), the MahApps disabled
 # style, the light text box border and the unselected tab header. The fix
 # belongs in app-packager-suite, then a sync of the vendored copy, not here.
 
@@ -17,11 +17,9 @@ function Get-KnownContrastDefect {
                 'btnApplyTemplateBulk:DisabledText', 'btnApplyTemplateOne:DisabledText', 'btnDeleteTemplate:DisabledText',
                 'btnEditTemplate:DisabledText', 'btnEditWindow:DisabledText', 'btnExportCsv:DisabledText',
                 'btnExportHtml:DisabledText', 'btnNewTemplate:DisabledText', 'btnNewWindow:DisabledText',
-                'btnOptions:DisabledBorder', 'btnOptions:EnabledBorder', 'btnRefresh:DisabledText',
-                'btnRemoveWindow:DisabledText', 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledBorder',
-                'btnViewCoverage:DisabledText', 'btnViewCoverage:EnabledBorder', 'btnViewTemplates:DisabledBorder',
-                'btnViewTemplates:DisabledText', 'btnViewTemplates:EnabledBorder', 'btnViewWindows:DisabledBorder',
-                'btnViewWindows:DisabledText', 'btnViewWindows:EnabledBorder',
+                'btnRefresh:DisabledText',
+                'btnRemoveWindow:DisabledText', 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText',
+                'btnViewTemplates:DisabledText', 'btnViewWindows:DisabledText',
                 'titlebar:inactive', 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }

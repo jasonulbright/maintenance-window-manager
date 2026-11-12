@@ -19,7 +19,7 @@ None.
 | Key | Option | Default |
 |---|---|---|
 | `SiteCode` | **Site Code** | Empty. |
-| `SMSProvider` | **SMS Provider FQDN** | Empty. |
+| `SMSProvider` | **SMS Provider** | Empty. |
 | `DarkMode` | **Dark Theme** switch | `true`. |
 
 `MaintWindowMgr.windowstate.json` keeps the size, the place and the open view of the window.

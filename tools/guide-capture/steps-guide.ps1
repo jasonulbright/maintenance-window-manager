@@ -31,7 +31,7 @@ Section 'refresh' {
 }
 Section 'window detail' {
   $r = Rows 'gridWindows'; Log ('window rows: ' + $r.Count)
-  if ($r.Count) { Select-El $r[0]; Start-Sleep -Seconds 1; Shot $win 'window-properties'; Tab 'Next 5 occurrences'; Shot $win 'window-occurrences'; Tab 'Properties' }
+  if ($r.Count) { Select-El $r[0]; Start-Sleep -Seconds 1; Shot $win 'window-properties'; Tab 'Next 5 Occurrences'; Shot $win 'window-occurrences'; Tab 'Properties' }
   Set-Text (Get-El $win 'txtFilter') 'a'; Start-Sleep -Seconds 1; Shot $win 'windows-filter-text'; Set-Text (Get-El $win 'txtFilter') ''
   Expand-El (Get-El $win 'cboStatusFilter'); Start-Sleep -Milliseconds 500; Shot $win 'windows-filter-list' -Hover; Collapse-El (Get-El $win 'cboStatusFilter')
 }

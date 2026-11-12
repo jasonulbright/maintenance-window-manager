@@ -71,7 +71,7 @@ BeforeAll {
             foreach ($view in $cfg.Views) {
                 foreach ($v in $cfg.Views) { $w.FindName($v.Container).Visibility = if ($v.Name -eq $view.Name) { 'Visible' } else { 'Collapsed' } }
                 Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views `
-                    -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name
+                    -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name -WorkflowButtonNames $cfg.WorkflowButtons
                 $out += [PSCustomObject]@{
                     View        = $view.Name
                     Text        = @(Get-TextContrast $w)

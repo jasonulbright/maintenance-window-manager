@@ -4,7 +4,9 @@ One command regenerates every image of this guide.
 
 ## What it does
 
-`tools\guide-capture\Invoke-GuideCapture.ps1` copies the tool to a lab computer, starts it in an interactive session of a lab account, walks every view, dialog and setting with Windows UI Automation, takes the screenshots at 1440 by 900 pixels, copies the PNG files back to `docs\images` and removes its files from the lab computer. It replaces only the images that exist already.
+`tools\guide-capture\Invoke-GuideCapture.ps1` copies the tool to a lab computer, starts it in an interactive session of a lab account, walks every view, dialog and setting with Windows UI Automation, takes the screenshots at 1440 by 900 pixels, copies the PNG files back to `docs\images` and removes its files from the lab computer. It replaces only the images that exist already. It works in its own lab folder, `C:\guide\maintenance-window-manager`, with its own scheduled task, `GuideShots-maintenance-window-manager`, and it waits while another capture holds `C:\guide\capture.lock`. It never deletes `C:\guide`.
+
+Use `-OutDir` to also keep a copy of every captured image.
 
 ## When to use it
 

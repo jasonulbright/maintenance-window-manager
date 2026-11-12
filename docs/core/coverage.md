@@ -37,7 +37,7 @@ Use it to find collections that have no maintenance window, and to fix many of t
 ![Collections selected](../images/coverage-selected.png)
 
 2. Select **Apply Template...**. The dialog `Apply Template` opens.
-3. Select the template in the **Template** list. Type a **Window Name** to override the template name, or leave it empty.
+3. Select the template in the **Template** list. Type a **Window Name (Optional)** to override the template name, or leave it empty.
 4. Select **Add Target...** to add collections. Select **Remove Selected** to remove entries from the list. The counter shows the number of targets.
 5. Select **Apply**. The log shows `Apply Template "<name>": <n> succeeded, <n> failed.` and `failed on <collection>: <reason>` for each failure.
 
