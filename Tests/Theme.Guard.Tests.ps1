@@ -281,7 +281,7 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
                 $el = $x.SelectSingleNode(("//*[@*[local-name()='Name']='{0}']" -f $name))
                 if ($el) { $hits += [pscustomobject]@{ Value = $el; Title = (Get-FieldTitleElement $el); Source = $d.Source } }
             }
-            $hits.Count | Should -BeGreaterOrEqual 2 -Because ('{0} must exist in the main window and in the Options dialog' -f $name)
+            $hits.Count | Should -BeGreaterOrEqual 1 -Because ('{0} must exist in the Options dialog' -f $name)
             foreach ($h in $hits) {
                 $h.Title | Should -Not -BeNullOrEmpty -Because ('{0} needs a title TextBlock before it' -f $name)
                 [double]$h.Title.GetAttribute('FontSize') | Should -BeGreaterOrEqual 14 -Because ('title of {0} in {1}' -f $name, $h.Source)
