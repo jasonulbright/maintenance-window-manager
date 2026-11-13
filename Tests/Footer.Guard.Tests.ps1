@@ -120,6 +120,9 @@ BeforeAll {
             $bar = $status.ParentNode
             $scope = New-Object System.Collections.Generic.List[object]
             $scope.Add($status)
+            # Every ancestor of the status element: a font attribute on one of them reaches the footer.
+            $anc = $bar
+            while ($anc -is [System.Xml.XmlElement]) { $scope.Add($anc); $anc = $anc.ParentNode }
             if ($bar -is [System.Xml.XmlElement]) {
                 $scope.Add($bar)
                 foreach ($d in @($bar.SelectNodes('.//*'))) { $scope.Add($d) }
@@ -249,6 +252,15 @@ BeforeAll {
             if ($init.Count -eq 0) { $problems.Add('Initialize-SuiteFooter is not called after the window loads') }
             if (-not (@($loaded | Where-Object { Test-CallsFooterUpdate -Node $_ -FunctionTable $fns }).Count)) { $problems.Add('Update-SuiteFooter is not called after the window loads') }
         }
+        # A throw in a footer call must not abort the handler: each call sits in a try block.
+        $bare = @($Ast.FindAll({ param($n)
+                    $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in @('Initialize-SuiteFooter', 'Update-SuiteFooter')
+                }, $true) | Where-Object {
+                $p = $_.Parent
+                while ($null -ne $p -and $p -isnot [System.Management.Automation.Language.TryStatementAst]) { $p = $p.Parent }
+                $null -eq $p
+            })
+        foreach ($b in $bare) { $problems.Add(('line {0}: {1} is not inside a try block' -f $b.Extent.StartLineNumber, $b.GetCommandName())) }
         $initCalls = @(Get-CommandName -Ast $Ast | Where-Object { $_ -eq 'Initialize-SuiteFooter' })
         if ($initCalls.Count -ne 1) { $problems.Add(('Initialize-SuiteFooter is called {0} times, not once' -f $initCalls.Count)) }
         if (-not $fns.ContainsKey($script:OptionsFunction)) { $problems.Add("function $($script:OptionsFunction) not found") }
@@ -422,18 +434,33 @@ $window.Add_Loaded({ Update-StatusBarSummary })'
     }
 
     It 'passes an app that calls the footer helpers directly and through a function' {
-        $ast = New-AstSample 'function Sync-FooterSite { Update-SuiteFooter -Window $window -SiteCode $a -SiteServer $b }
+        $ast = New-AstSample 'function Sync-FooterSite { try { Update-SuiteFooter -Window $window -SiteCode $a -SiteServer $b } catch { Add-LogLine $_ } }
 function Show-OptionsDialog { Sync-FooterSite }
-function Invoke-ConnectSite { $t.Add_Tick({ Update-SuiteFooter -Window $window }) }
-$window.Add_Loaded({ [void](Initialize-SuiteFooter -Window $window); Sync-FooterSite })'
+function Invoke-ConnectSite { $t.Add_Tick({ Sync-FooterSite }) }
+$window.Add_Loaded({ try { [void](Initialize-SuiteFooter -Window $window) } catch { Add-LogLine $_ }; Sync-FooterSite })'
         @(Get-FooterCallProblem -Ast $ast).Count | Should -Be 0
     }
 
-    It 'fails an app that calls Initialize-SuiteFooter twice (bad sample)' {
+    It 'fails a footer call outside a try block (bad sample)' {
         $ast = New-AstSample 'function Sync-FooterSite { Update-SuiteFooter -Window $window }
 function Show-OptionsDialog { Sync-FooterSite }
-function Invoke-ConnectSite { Sync-FooterSite; Initialize-SuiteFooter -Window $window }
-$window.Add_Loaded({ Initialize-SuiteFooter -Window $window; Sync-FooterSite })'
+function Invoke-ConnectSite { Sync-FooterSite }
+$window.Add_Loaded({ [void](Initialize-SuiteFooter -Window $window); Sync-FooterSite })'
+        @(Get-FooterCallProblem -Ast $ast).Count | Should -Be 2
+    }
+
+    It 'fails a font attribute on the grandparent of the status element (bad sample)' {
+        $d = New-XmlSample '<Grid FontSize="9"><Border><DockPanel><TextBlock x:Name="txtStatus"/></DockPanel></Border></Grid>'
+        @(Get-FooterFontViolation -Document $d -Name @('txtStatus')).Count | Should -Be 1
+        $d = New-XmlSample '<Border TextElement.FontWeight="Bold"><DockPanel><TextBlock x:Name="txtStatus"/></DockPanel></Border>'
+        @(Get-FooterFontViolation -Document $d -Name @('txtStatus')).Count | Should -Be 1
+    }
+
+    It 'fails an app that calls Initialize-SuiteFooter twice (bad sample)' {
+        $ast = New-AstSample 'function Sync-FooterSite { try { Update-SuiteFooter -Window $window } catch { $null = $_ } }
+function Show-OptionsDialog { Sync-FooterSite }
+function Invoke-ConnectSite { Sync-FooterSite; try { Initialize-SuiteFooter -Window $window } catch { $null = $_ } }
+$window.Add_Loaded({ try { Initialize-SuiteFooter -Window $window } catch { $null = $_ }; Sync-FooterSite })'
         @(Get-FooterCallProblem -Ast $ast).Count | Should -Be 1
     }
 }
