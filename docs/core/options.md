@@ -27,6 +27,10 @@ Select **Options** in the sidebar.
 
 ![The Connection page](../images/options-connection.png)
 
+### Site in the footer
+
+The footer of the main window shows the site on the right, for example `Site MCM · cm01.contoso.com`. It shows `Site not set` while the site code or the provider is empty. The footer is read-only. Select the site text to open Options. You change the site code and the provider only here.
+
 ### About
 
 The page shows the version and a short description.
@@ -68,6 +72,7 @@ See the table above. [Settings](../reference/settings.md) lists the file keys.
 | Message or symptom | Cause | Fix |
 |---|---|---|
 | The status bar asks you to open Options. | The site code or the provider is empty. | Fill both fields. |
+| The footer shows `Site not set`. | The site code or the provider is empty. | Fill both fields. |
 
 ## Links
 

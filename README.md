@@ -29,7 +29,7 @@ The [user guide](docs/index.md) walks every view, dialog and setting with images
    ```powershell
    powershell -ExecutionPolicy Bypass -File start-maintenancewindowmgr.ps1
    ```
-3. Click **Options** on the sidebar and set Site Code and SMS Provider.
+3. Click **Options** on the sidebar and set Site Code and SMS Provider. The footer then shows the site at the right end, for example `Site MCM · cm01.contoso.com`. The footer is read-only. Click the site text to open Options.
 4. Click **Refresh** to load every collection and every maintenance window.
 
 Buttons have two looks in both themes. A primary button is blue with white text. A secondary dialog button (Cancel, Browse...) has a gray fill, the theme text color and a visible border.
