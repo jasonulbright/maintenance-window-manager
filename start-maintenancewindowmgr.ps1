@@ -191,8 +191,6 @@ $txtProgressStep  = $window.FindName('txtProgressStep')
 $lblLogOutput = $window.FindName('lblLogOutput')
 $txtLog       = $window.FindName('txtLog')
 $txtStatus    = $window.FindName('txtStatus')
-$txtStatusSiteCode = $window.FindName('txtSiteCode')
-$txtStatusProvider = $window.FindName('txtSmsProvider')
 
 $null = $txtAppTitle, $txtVersion
 
@@ -215,6 +213,13 @@ function Set-StatusText {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates an in-window TextBlock only.')]
     param([Parameter(Mandatory)][string]$Text)
     $txtStatus.Text = $Text
+}
+
+function Sync-FooterSite {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Updates an in-window TextBlock only.')]
+    param()
+    try { Update-SuiteFooter -Window $window -SiteCode ([string]$global:Prefs.SiteCode) -SiteServer ([string]$global:Prefs.SMSProvider) }
+    catch { Write-Log ('Footer: {0}' -f $_.Exception.Message) -Level ERROR -Quiet; Add-LogLine 'The footer failed. The log file has the details.' }
 }
 
 # =============================================================================
@@ -432,9 +437,6 @@ function Update-StatusBarSummary {
         $parts += ('last refresh {0}' -f $script:LastRefreshTime.ToString('HH:mm:ss'))
     }
     Set-StatusText ($parts -join '   |   ')
-    # The site code and the SMS Provider values show in normal text. Their titles are bold 14 pt.
-    if ($txtStatusSiteCode) { $txtStatusSiteCode.Text = [string]$global:Prefs.SiteCode }
-    if ($txtStatusProvider) { $txtStatusProvider.Text = [string]$global:Prefs.SMSProvider }
 }
 
 # =============================================================================
@@ -747,6 +749,7 @@ function Invoke-Refresh {
 
             Update-Filter
             Update-StatusBarSummary
+            Sync-FooterSite
             $progressOverlay.Visibility = [System.Windows.Visibility]::Collapsed
             $btnRefresh.IsEnabled = $true
 
@@ -1960,6 +1963,7 @@ function Show-OptionsDialog {
         $global:Prefs.SiteCode    = $newSite
         $global:Prefs.SMSProvider = $newProvider
         Save-MwmPreferences -Prefs $global:Prefs
+        Sync-FooterSite
         if ($changed) {
             Dispose-BgWork
             if ($script:BgRunspace) {
@@ -2005,6 +2009,9 @@ $window.Add_Loaded({
     Update-TitleBarBrushes
     Update-ActionBarVisibility
     Update-StatusBarSummary
+    try { [void](Initialize-SuiteFooter -Window $window -StatusName 'txtStatus' -OnOpenOptions { Show-OptionsDialog }) }
+    catch { Write-Log ('Footer: {0}' -f $_.Exception.Message) -Level ERROR -Quiet; Add-LogLine 'The footer failed. The log file has the details.' }
+    Sync-FooterSite
     Add-LogLine 'Maintenance Window Manager ready. Configure Site Code and SMS Provider in Options, then click Refresh.'
     Invoke-LoadTemplates
 })

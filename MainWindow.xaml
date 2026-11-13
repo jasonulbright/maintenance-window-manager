@@ -518,13 +518,7 @@
             <Border Grid.Row="5" Padding="8,4,8,4"
                     Background="{DynamicResource MahApps.Brushes.Gray10}">
                 <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                        <TextBlock Text="Site Code" FontSize="14" FontWeight="Bold" Margin="0,0,6,0"/>
-                        <TextBlock x:Name="txtSiteCode" Text="" FontSize="12" Margin="0,0,16,0"/>
-                        <TextBlock Text="SMS Provider" FontSize="14" FontWeight="Bold" Margin="0,0,6,0"/>
-                        <TextBlock x:Name="txtSmsProvider" Text="" FontSize="12"/>
-                    </StackPanel>
-                    <TextBlock x:Name="txtStatus" Text="Ready." FontSize="11" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="txtStatus" Text="Ready." VerticalAlignment="Center"/>
                 </DockPanel>
             </Border>
         </Grid>

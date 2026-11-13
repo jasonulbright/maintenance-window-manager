@@ -9,7 +9,7 @@ BeforeAll {
     $script:ShellPath = Join-Path $script:AppRoot 'start-maintenancewindowmgr.ps1'
     $script:Ast = [System.Management.Automation.Language.Parser]::ParseFile($script:ShellPath, [ref]$null, [ref]$null)
     $wanted = 'Get-MwmPreferences', 'Save-MwmPreferences', 'Get-WindowStatusGlyph', 'Get-CoverageGlyph', 'Get-StatusFilterValue',
-        'Update-Filter', 'Set-StatusText', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt', 'Get-MonthlyPreviewDate', 'Get-PreviewStartDateTime', 'Get-MonthlyPreviewOccurrences'
+        'Update-Filter', 'Set-StatusText', 'Sync-FooterSite', 'Update-StatusBarSummary', 'Get-ScheduleRecurrenceTypeInt', 'Get-MonthlyPreviewDate', 'Get-PreviewStartDateTime', 'Get-MonthlyPreviewOccurrences'
     foreach ($n in $wanted) {
         $def = $script:Ast.Find({ param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $n }, $true)
         if (-not $def) { throw "function $n not found in the script" }
@@ -145,15 +145,14 @@ Describe 'Update-StatusBarSummary' {
         $script:StatusText | Should -Be $Expected
     }
 
-    It 'shows the site code and the SMS Provider values in the status bar boxes' {
-        $script:txtStatusSiteCode = [pscustomobject]@{ Text = '' }
-        $script:txtStatusProvider = [pscustomobject]@{ Text = '' }
-        try {
-            Update-StatusBarSummary
-            $script:txtStatusSiteCode.Text | Should -Be 'MCM'
-            $script:txtStatusProvider.Text | Should -Be 'cm01'
-        }
-        finally { Remove-Variable -Name txtStatusSiteCode, txtStatusProvider -Scope Script -ErrorAction SilentlyContinue }
+    It 'sends the saved site code and SMS Provider to the footer' {
+        $script:FooterArgs = $null
+        function Update-SuiteFooter { param($Window, [string]$SiteCode, [string]$SiteServer) $script:FooterArgs = @{ Window = $Window; SiteCode = $SiteCode; SiteServer = $SiteServer } }
+        $window = [pscustomobject]@{ Name = 'w' }
+        Sync-FooterSite
+        $script:FooterArgs.Window.Name | Should -Be 'w'
+        $script:FooterArgs.SiteCode | Should -Be 'MCM'
+        $script:FooterArgs.SiteServer | Should -Be 'cm01'
     }
 
     It 'shows the counts and the refresh time when connected' {

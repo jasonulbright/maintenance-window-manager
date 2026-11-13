@@ -40,7 +40,7 @@ If you select **Refresh** before you set the connection, the log asks you to ope
 1. Select **Options** in the sidebar.
 2. Type the **Site Code**, for example `MCM`.
 3. Type the **SMS Provider**, the FQDN of the server, for example `cm01.contoso.com`.
-4. Select **OK**.
+4. Select **OK**. The right end of the footer shows the site, for example `Site MCM · cm01.contoso.com`. The footer is read-only. Select the site text to open Options.
 
 ![The Options dialog at the first start](images/options-empty.png)
 
