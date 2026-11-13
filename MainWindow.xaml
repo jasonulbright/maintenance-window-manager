@@ -257,7 +257,7 @@
 
             <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="16,12,16,10">
                 <StackPanel>
-                    <TextBlock x:Name="txtModuleTitle" Text="Windows" FontSize="18" FontWeight="Bold"/>
+                    <TextBlock x:Name="txtModuleTitle" Text="Windows" FontSize="18" FontWeight="SemiBold"/>
                     <TextBlock x:Name="txtModuleSubtitle"
                                Text="All maintenance windows of all device collections."
                                FontSize="11"
@@ -481,7 +481,7 @@
                                                Foreground="{DynamicResource MahApps.Brushes.Accent}"/>
                         <TextBlock x:Name="txtProgressTitle"
                                    Text="Loading..."
-                                   FontSize="18" FontWeight="Bold"
+                                   FontSize="18" FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
                                    Margin="0,14,0,0"/>
                         <TextBlock x:Name="txtProgressStep"
@@ -501,7 +501,7 @@
             <Border Grid.Row="4">
                 <DockPanel>
                     <TextBlock x:Name="lblLogOutput" DockPanel.Dock="Top" Text="Log Output"
-                               FontSize="10" FontWeight="Bold"
+                               FontSize="10" FontWeight="SemiBold"
                                Margin="8,6,0,4"/>
                     <TextBox x:Name="txtLog"
                              IsReadOnly="True"
