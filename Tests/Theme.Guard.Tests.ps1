@@ -299,8 +299,8 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
         $text | Should -Not -Match '\$box\.FontWeight'
     }
 
-    It 'bolds the section titles of the main window and the dialogs' {
-        $titles = 'Description', 'Schedule', 'Next 5 Occurrences', 'Target Collections', 'Log Output', 'Configuration Manager Connection', 'About'
+    It 'keeps the section titles of the main window and the dialogs at SemiBold, not bold' {
+        $titles = 'Schedule', 'Next 5 Occurrences', 'Target Collections', 'Log Output', 'Configuration Manager Connection', 'About'
         $found = 0
         $bad = foreach ($d in $script:XamlDocs) {
             [xml]$x = $d.Text
@@ -308,11 +308,13 @@ Describe 'Theme helpers of SuiteCommon behave and are used (a, b, d)' {
                 if ($titles -notcontains $t.GetAttribute('Text')) { continue }
                 # A tab header takes its weight from the style: bold when the tab is selected.
                 if ($t.GetAttribute('Style')) { continue }
+                # The 11 pt Schedule label of the template page titles a value field. It is a field title and stays bold.
+                if ($t.GetAttribute('Text') -eq 'Schedule' -and $t.GetAttribute('FontSize') -eq '11') { continue }
                 $found++
-                if ($t.GetAttribute('FontWeight') -ne 'Bold') { '{0}: {1} is not bold' -f $d.Source, $t.GetAttribute('Text') }
+                if ($t.GetAttribute('FontWeight') -ne 'SemiBold') { '{0}: {1} is not SemiBold' -f $d.Source, $t.GetAttribute('Text') }
             }
         }
-        $found | Should -BeGreaterOrEqual 8
+        $found | Should -BeGreaterOrEqual 7
         @($bad) | Should -BeNullOrEmpty
     }
 

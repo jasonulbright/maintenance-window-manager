@@ -880,7 +880,7 @@ $script:ScheduleEditorXamlFragment = @'
     </StackPanel>
 
     <StackPanel Grid.Row="8" Margin="0,16,0,0">
-        <TextBlock Text="Next 5 Occurrences" FontSize="11" FontWeight="Bold" Margin="0,0,0,4"/>
+        <TextBlock Text="Next 5 Occurrences" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"/>
         <Border BorderThickness="1" BorderBrush="{DynamicResource MahApps.Brushes.Gray8}"
                 Background="{DynamicResource MahApps.Brushes.ThemeBackground}" Padding="8" MinHeight="100">
             <TextBlock x:Name="txtSchedulePreview" FontSize="11" FontFamily="Cascadia Code, Consolas, Courier New"
@@ -1224,7 +1224,7 @@ function Show-NewWindowDialog {
 
             <CheckBox x:Name="chkWindowEnabled" Grid.Row="3" Margin="0,12,0,0" Content="Enabled" IsChecked="True" FontSize="12"/>
 
-            <TextBlock Grid.Row="4" Text="Schedule" FontSize="13" FontWeight="Bold" Margin="0,16,0,4"/>
+            <TextBlock Grid.Row="4" Text="Schedule" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,4"/>
 
             <ContentControl x:Name="scheduleHost" Grid.Row="5"/>
 
@@ -1456,7 +1456,7 @@ function Show-TemplateEditorDialog {
                 </ComboBox>
             </StackPanel>
 
-            <TextBlock Grid.Row="3" Text="Schedule" FontSize="13" FontWeight="Bold" Margin="0,16,0,4"/>
+            <TextBlock Grid.Row="3" Text="Schedule" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,4"/>
             <ContentControl x:Name="scheduleHost" Grid.Row="4"/>
 
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
@@ -1628,7 +1628,7 @@ function Show-ApplyTemplateDialog {
                      Controls:TextBoxHelper.Watermark="Uses the template name when blank"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="2" Text="Target Collections" FontSize="11" FontWeight="Bold" Margin="0,16,0,4"/>
+        <TextBlock Grid.Row="2" Text="Target Collections" FontSize="11" FontWeight="SemiBold" Margin="0,16,0,4"/>
         <Border Grid.Row="3" BorderThickness="1"
                 BorderBrush="{DynamicResource MahApps.Brushes.Gray8}"
                 Background="{DynamicResource MahApps.Brushes.ThemeBackground}">
@@ -1900,7 +1900,7 @@ function Show-OptionsDialog {
         <Border Grid.Column="1" Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
         <Grid Grid.Column="2" Grid.Row="0" Margin="20,16,20,16">
             <StackPanel x:Name="paneConnection" Visibility="Visible">
-                <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="Bold" Margin="0,0,0,10"/>
+                <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <TextBlock Text="Site Code" FontSize="14" FontWeight="Bold" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
                 <TextBox x:Name="txtSiteCode" FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. MCM" Width="120" HorizontalAlignment="Left"/>
@@ -1912,8 +1912,8 @@ function Show-OptionsDialog {
                            Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
             </StackPanel>
             <StackPanel x:Name="paneAbout" Visibility="Collapsed">
-                <TextBlock Text="About" FontSize="13" FontWeight="Bold" Margin="0,0,0,10"/>
-                <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="Bold"/>
+                <TextBlock Text="About" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <TextBlock x:Name="txtAboutVersion" Text="Maintenance Window Manager v1.2.1" FontSize="13" FontWeight="SemiBold"/>
                 <TextBlock Text="Show, create, edit, enable, disable and delete ConfigMgr maintenance windows of device collections. Apply saved schedule templates to many device collections. The schedule editor supports One-time, Daily, Weekly, Monthly by Date, Monthly by Weekday and Patch Tuesday plus N days. It shows the next five occurrences."
                            FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
                 <TextBlock Text="Author: Jason Ulbright. License: MIT."
