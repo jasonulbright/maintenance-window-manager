@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 # Logic of start-maintenancewindowmgr.ps1. The script cannot be dot-sourced (it opens
 # the window), so each function is cut out of its syntax tree and defined here,
 # with plain objects in place of the window controls.
@@ -187,7 +187,7 @@ Describe 'Preferences file' {
         $p.ContainsKey('Evil') | Should -BeFalse
     }
 
-    It 'round-trips the value <Value>' -ForEach @(@{ Value = 'MCM' }, @{ Value = 'Ünï-日本' }, @{ Value = 'a "q" \ b' }, @{ Value = ('x' * 5000) }) {
+    It 'round-trips the value <Value>' -ForEach @(@{ Value = 'MCM' }, @{ Value = ('' + [char]0x00DC + 'n' + [char]0x00EF + '-' + [char]0x65E5 + [char]0x672C) }, @{ Value = 'a "q" \ b' }, @{ Value = ('x' * 5000) }) {
         Save-MwmPreferences -Prefs @{ DarkMode = $false; SiteCode = $Value; SMSProvider = 'cm01' }
         $p = Get-MwmPreferences
         $p.SiteCode | Should -Be $Value

@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 # Export-MaintenanceWindowsCsv and Export-MaintenanceWindowsHtml, from a data table
 # and from window objects (the Export buttons).
 
@@ -55,7 +55,7 @@ Describe 'Export-MaintenanceWindowsCsv' {
     }
 
     It 'round-trips the hostile value <Name>' -ForEach @(
-        @{ Name = 'comma'; Value = 'a,b' }, @{ Name = 'quote'; Value = 'say "hi"' }, @{ Name = 'newline'; Value = "l1`r`nl2" }, @{ Name = 'unicode'; Value = 'Ünï 日本語' }, @{ Name = 'long'; Value = ('x' * 20000) }
+        @{ Name = 'comma'; Value = 'a,b' }, @{ Name = 'quote'; Value = 'say "hi"' }, @{ Name = 'newline'; Value = "l1`r`nl2" }, @{ Name = 'unicode'; Value = ('' + [char]0x00DC + 'n' + [char]0x00EF + ' ' + [char]0x65E5 + [char]0x672C + [char]0x8A9E) }, @{ Name = 'long'; Value = ('x' * 20000) }
     ) {
         $path = Join-Path $TestDrive "h-$Name.csv"
         Export-MaintenanceWindowsCsv -Windows @([PSCustomObject]@{ WindowName = $Value }) -Columns 'WindowName' -OutputPath $path

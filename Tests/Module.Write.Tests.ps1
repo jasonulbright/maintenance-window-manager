@@ -1,4 +1,4 @@
-﻿#Requires -Modules Pester
+#Requires -Modules Pester
 # Write actions: window create, update, remove, template apply, copy, bulk enable.
 # Templates and CSV import. ConfigMgr cmdlets are stubs and mocks. Covers success,
 # failure, partial failure, -WhatIf and hostile input.
@@ -48,7 +48,7 @@ Describe 'New-ManagedMaintenanceWindow' {
     }
 
     It 'passes the hostile name <Name> through unchanged' -ForEach @(
-        @{ Name = "O'Brien ""Q"" <b>" }, @{ Name = ('n' * 400) }, @{ Name = 'Ünï 日本語' }, @{ Name = '..\x' }
+        @{ Name = "O'Brien ""Q"" <b>" }, @{ Name = ('n' * 400) }, @{ Name = ('' + [char]0x00DC + 'n' + [char]0x00EF + ' ' + [char]0x65E5 + [char]0x672C + [char]0x8A9E) }, @{ Name = '..\x' }
     ) {
         $global:Fx = $Name
         $null = New-ManagedMaintenanceWindow -CollectionId 'MCM00001' -Name $Name -Schedule 's'
@@ -164,7 +164,7 @@ Describe 'Window template files' {
     }
 
     It 'keeps the name of a hostile template verbatim and makes a safe file name: <Name>' -ForEach @(
-        @{ Name = '..\..\evil' }, @{ Name = 'a/b:c*d?e' }, @{ Name = 'Ünï 日本' }, @{ Name = ('x' * 100) }, @{ Name = '!!!' }
+        @{ Name = '..\..\evil' }, @{ Name = 'a/b:c*d?e' }, @{ Name = ('' + [char]0x00DC + 'n' + [char]0x00EF + ' ' + [char]0x65E5 + [char]0x672C) }, @{ Name = ('x' * 100) }, @{ Name = '!!!' }
     ) {
         $path = Save-WindowTemplate -TemplatesPath $script:dir -Name $Name -RecurrenceType Daily
         (Split-Path $path -Parent) | Should -Be $script:dir
@@ -193,8 +193,8 @@ Describe 'Window template files' {
 
     It 'reads unicode from a file without a byte order mark' {
         New-Item -ItemType Directory -Path $script:dir -Force | Out-Null
-        [IO.File]::WriteAllText((Join-Path $script:dir 'u.json'), '{"Name":"Ünï 日本","RecurrenceType":"Daily"}', (New-Object Text.UTF8Encoding $false))
-        (@(Get-WindowTemplates -TemplatesPath $script:dir))[0].Name | Should -Be 'Ünï 日本'
+        [IO.File]::WriteAllText((Join-Path $script:dir 'u.json'), ('{"Name":"' + [char]0x00DC + 'n' + [char]0x00EF + ' ' + [char]0x65E5 + [char]0x672C + '","RecurrenceType":"Daily"}'), (New-Object Text.UTF8Encoding $false))
+        (@(Get-WindowTemplates -TemplatesPath $script:dir))[0].Name | Should -Be ('' + [char]0x00DC + 'n' + [char]0x00EF + ' ' + [char]0x65E5 + [char]0x672C)
     }
 
     It 'ignores files that are not JSON' {
@@ -374,10 +374,10 @@ Describe 'Import-MaintenanceWindowsCsv' {
     }
 
     It 'reads unicode and quoted values' {
-        [IO.File]::WriteAllText($script:csv, "CollectionName,WindowName`r`n`"Ünï, `"`"q`"`"`",日本`r`n", (New-Object Text.UTF8Encoding $false))
+        [IO.File]::WriteAllText($script:csv, "CollectionName,WindowName`r`n`"$([char]0x00DC)n$([char]0x00EF), `"`"q`"`"`",$([char]0x65E5)$([char]0x672C)`r`n", (New-Object Text.UTF8Encoding $false))
         $r = (@(Import-MaintenanceWindowsCsv -CsvPath $script:csv))[0]
-        $r.CollectionName | Should -Be 'Ünï, "q"'
-        $r.WindowName | Should -Be '日本'
+        $r.CollectionName | Should -Be ('' + [char]0x00DC + 'n' + [char]0x00EF + ', "q"')
+        $r.WindowName | Should -Be ('' + [char]0x65E5 + [char]0x672C)
     }
 
     It 'reads 2000 rows' {
