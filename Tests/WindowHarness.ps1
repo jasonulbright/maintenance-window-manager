@@ -44,8 +44,10 @@ $script:HarnessBootstrap = {
         $reader = New-Object System.Xml.XmlNodeReader $xaml
         $w = [System.Windows.Markup.XamlReader]::Load($reader)
         $w.WindowStartupLocation = 'Manual'
-        $w.Left = -32000; $w.Top = -32000
-        $w.ShowInTaskbar = $false
+        # SUITE_VISIBLE_WINDOWS=1 (the visible lab run in the labadmin session) shows the window on the desktop.
+        $visible = ($env:SUITE_VISIBLE_WINDOWS -eq '1')
+        $w.Left = $(if ($visible) { 80 } else { -32000 }); $w.Top = $(if ($visible) { 80 } else { -32000 })
+        $w.ShowInTaskbar = $visible
         $w.Width = $Width; $w.Height = $Height
         [void][ControlzEx.Theming.ThemeManager]::Current.ChangeTheme($w, $(if ($Dark) { 'Dark.Steel' } else { 'Light.Blue' }))
         $w.Show()
@@ -53,6 +55,7 @@ $script:HarnessBootstrap = {
         # MetroWindow fades its root grid in; measure after the fade ends.
         $root = Get-VisualDescendants $w | Where-Object { $_ -is [System.Windows.FrameworkElement] -and $_.Name -eq 'RootGrid' } | Select-Object -First 1
         for ($i = 0; $root -and $i -lt 100 -and $root.Opacity -lt 0.999; $i++) { Start-Sleep -Milliseconds 50; Sync-Layout $w }
+        if ($visible) { Start-Sleep -Milliseconds 600 }
         return $w
     }
 
