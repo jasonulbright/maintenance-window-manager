@@ -15,7 +15,7 @@ function Get-KnownContrastDefect {
         'dark' {
             @(
                 'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText', 'btnViewWindows:DisabledText',
-                'titlebar:inactive', 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
+                'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
         'light' {
@@ -25,9 +25,7 @@ function Get-KnownContrastDefect {
                 'btnExportHtml:DisabledText', 'btnNewTemplate:DisabledText', 'btnNewWindow:DisabledText',
                 'btnOptions:DisabledText', 'btnRefresh:DisabledText', 'btnRemoveWindow:DisabledText',
                 'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText',
-                'btnViewWindows:DisabledText', 'cboStatusFilter:DisabledBorder', 'cboStatusFilter:DisabledText',
-                'cboStatusFilter:EnabledBorder', 'cboStatusFilter:EnabledText',
-                'titlebar:inactive', 'txtFilter:DisabledBorder', 'txtFilter:EnabledBorder',
+                'btnViewWindows:DisabledText', 'cboStatusFilter:DisabledText', 'cboStatusFilter:EnabledText',
                 'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
