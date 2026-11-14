@@ -418,7 +418,7 @@ Describe 'Every button takes the shared themed style (e)' {
         $pri = Get-StyleSetter 'DialogAccentButton'
         $sec['Background'] | Should -Match 'MahApps\.Brushes\.Gray'
         $sec['Foreground'] | Should -Match 'MahApps\.Brushes\.ThemeForeground'
-        $sec['BorderBrush'] | Should -Match 'MahApps\.Brushes\.ThemeForeground'
+        $sec['BorderBrush'] | Should -Match 'MahApps\.Brushes\.Gray2'
         $sec['Height'] | Should -Be $pri['Height']
         $sec['MinWidth'] | Should -Be $pri['MinWidth']
         Test-WhiteBrush $pri['Foreground'] | Should -BeTrue
