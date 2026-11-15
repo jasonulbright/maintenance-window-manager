@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Treat disabled controls as exempt from 4.5:1 text contrast and require them to look dimmed.
+- Dim disabled text boxes and combo boxes by opacity, like the shared buttons.
+
 ## [2026.11.15.0023] - 2026-11-15
 
 ## 29 guide images and the README image retaken with blue pressed buttons

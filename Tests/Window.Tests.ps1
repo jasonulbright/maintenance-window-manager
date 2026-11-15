@@ -205,12 +205,27 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
         $tb.Active | Should -BeGreaterOrEqual 4.5
     }
 
+    It 'dims every disabled control clearly (enabled text at least 1.25 times the disabled text) and keeps its text readable (1.5:1)' {
+        # Disabled controls are exempt from 4.5:1 (WCAG 1.4.3), but a disabled control must look disabled and stay legible.
+        $bad = New-Object System.Collections.Generic.List[string]
+        foreach ($v in ($script:Measured['{0}|1440x900' -f $Theme])) {
+            foreach ($c in $v.Interactive) {
+                if ($null -eq $c.EnabledText -or $null -eq $c.DisabledText) { continue }
+                $dim = $c.EnabledText / [math]::Max($c.DisabledText, 0.01)
+                if ($dim -lt 1.25 -or $c.DisabledText -lt 1.5) { [void]$bad.Add(('{0}: enabled {1}, disabled {2}' -f $c.Name, $c.EnabledText, $c.DisabledText)) }
+            }
+        }
+        $list = @($bad | Sort-Object -Unique)
+        $list | Should -BeNullOrEmpty -Because ('a disabled control is not clearly dimmed or not readable: ' + ($list -join '; '))
+    }
+
     It 'meets the standard on every control, except the listed known defects' {
         $known = Get-KnownContrastDefect -Theme $Theme
         $violations = New-Object System.Collections.Generic.List[string]
         foreach ($v in ($script:Measured['{0}|1440x900' -f $Theme])) {
             foreach ($c in $v.Interactive) {
-                foreach ($metric in 'EnabledText', 'DisabledText', 'EnabledBorder', 'DisabledBorder') {
+                # A disabled control is exempt (WCAG 1.4.3 exempts inactive components), so only the enabled metrics count here.
+                foreach ($metric in 'EnabledText', 'EnabledBorder') {
                     $value = $c.$metric
                     if ($null -eq $value) { continue }
                     $min = if ($metric -like '*Text') { 4.5 } else { 3.0 }

@@ -32,7 +32,8 @@ try {
         foreach ($v in $r) {
             foreach ($t in $v.Text) { $min = if ($t.Size -ge 24 -or ($t.Bold -and $t.Size -ge 18.66)) { 3.0 } else { 4.5 }; if ($t.Ratio -lt $min) { [void]$keys.Add(('text:{0}' -f $t.Text)) } }
             foreach ($c in $v.Interactive) {
-                foreach ($m in 'EnabledText', 'DisabledText', 'EnabledBorder', 'DisabledBorder') {
+                # A disabled control is exempt (WCAG 1.4.3 exempts inactive components).
+                foreach ($m in 'EnabledText', 'EnabledBorder') {
                     $x = $c.$m; if ($null -eq $x) { continue }
                     $min = if ($m -like '*Text') { 4.5 } else { 3.0 }
                     if ($x -lt $min) { [void]$keys.Add(('{0}:{1}' -f $c.Name, $m)) }
