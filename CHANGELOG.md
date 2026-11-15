@@ -2,13 +2,24 @@
 
 ## [Unreleased]
 
+## [2026.11.14.0022] - 2026-11-14
+
+## 20 guide images retaken with the current dialog chrome
+
 ### Changed
 
 - Retake the guide images with the current dialog chrome of SuiteCommon.
-- Add window tests for the hover, focus and pressed states of the buttons and for the title bar and button chrome of every dialog, both measured through SuiteCommon, and sync the vendored SuiteCommon.
-- Draw the buttons of the confirmation dialog of SuiteCommon with a 1 px border, as in suite PR 37 (the vendored copy only; the suite repository needs the same edit in Show-ConfirmDialog).
-- Share one STA session across the window test files, so two window test files in one Pester run do not hang.
-- Add a Title Case guard for the window titles, tab and column headers, field titles and button texts.
+- Draw the confirmation dialog buttons with a 1 px border.
+- Sync the vendored SuiteCommon.
+
+### Added
+
+- Add window tests for the button states and for the chrome of every dialog.
+- Add a Title Case guard for window titles, headers, field titles and button texts.
+
+### Fixed
+
+- Share one STA session across the window test files, so Pester runs do not hang.
 
 ## [2026.11.14.0021] - 2026-11-14
 
