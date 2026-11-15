@@ -2,15 +2,17 @@
 
 ## [Unreleased]
 
-### Changed
-
-- Draw pressed and hover buttons in blue with the shared SuiteCommon button templates.
-- Sync the vendored SuiteCommon: light blue inactive title bar with dark caption text.
-
 ### Added
 
 - Check dialog bodies and title bars against the theme in the window tests.
 - Close stray windows after every window test call, with a guard test.
+- Map the README image to the capture, with a sync script and a guard test.
+
+### Changed
+
+- Draw pressed and hover buttons in blue with the shared SuiteCommon button templates.
+- Sync the vendored SuiteCommon: light blue inactive title bar with dark caption text.
+- Retake every guide image and the README image with the new buttons and title bar.
 
 ## [2026.11.14.0022] - 2026-11-14
 

@@ -229,7 +229,7 @@ Describe 'Contrast <Theme>' -ForEach @(@{ Theme = 'dark' }, @{ Theme = 'light' }
         $found = @($violations | Sort-Object -Unique)
         $new = @($found | Where-Object { $known -notcontains $_ })
         $fixed = @($known | Where-Object { $found -notcontains $_ })
-        $new | Should -BeNullOrEmpty -Because 'a new contrast violation appeared'
-        $fixed | Should -BeNullOrEmpty -Because 'a known defect is fixed: remove it from Get-KnownContrastDefect'
+        $new | Should -BeNullOrEmpty -Because ('a new contrast violation appeared: ' + ($new -join ', '))
+        $fixed | Should -BeNullOrEmpty -Because ('a known defect is fixed, remove it from Get-KnownContrastDefect: ' + ($fixed -join ', '))
     }
 }
