@@ -75,7 +75,8 @@
 
             <!-- The primary dialog button: the accent blue with white text. -->
             <Style x:Key="DialogAccentButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
-                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Accent}"/>
+                <Setter Property="Template" Value="{DynamicResource SuiteAccentButtonTemplate}"/>
+                <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
                 <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.IdealForeground}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.AccentBase}"/>
                 <Setter Property="MinWidth" Value="90"/><Setter Property="Height" Value="32"/>
@@ -85,6 +86,7 @@
             <!-- The one secondary style, for Cancel, Browse and the other dialog buttons: a gray fill,
                  the theme text color and a visible border. It has the size of the primary style. -->
             <Style x:Key="DialogButton" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Template" Value="{DynamicResource SuiteNeutralButtonTemplate}"/>
                 <Setter Property="Background" Value="{DynamicResource MahApps.Brushes.Gray10}"/>
                 <Setter Property="Foreground" Value="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource MahApps.Brushes.Gray2}"/>
@@ -115,6 +117,7 @@
             </Style>
 
             <Style x:Key="SquareInlineButtonStyle" TargetType="Button" BasedOn="{StaticResource ThemedButtonStyle}">
+                <Setter Property="Template" Value="{DynamicResource SuiteNeutralButtonTemplate}"/>
                 <Setter Property="Height" Value="28"/>
                 <Setter Property="MinWidth" Value="100"/>
                 <Setter Property="Margin" Value="0,0,8,0"/>

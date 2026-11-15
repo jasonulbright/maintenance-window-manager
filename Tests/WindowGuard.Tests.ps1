@@ -193,3 +193,45 @@ Describe 'Get-WpfSession refuses where the guard says no' {
         { Get-WpfSession } | Should -Throw '*not allowed*'
     }
 }
+
+Describe 'Window cleanup' {
+    It 'closes the windows that a call left open in the finally block of Invoke-WpfSta' {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'WindowHarness.ps1'), [ref]$null, [ref]$null)
+        $fn = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Invoke-WpfSta' }, $true)
+        $fn | Should -Not -BeNullOrEmpty
+        $tries = @($fn.Body.FindAll({ param($n) $n -is [System.Management.Automation.Language.TryStatementAst] -and $n.Finally }, $true))
+        $tries.Count | Should -BeGreaterThan 0
+        @($tries | Where-Object { $_.Finally.Extent.Text -match 'Close-SuiteOpenWindow' }).Count | Should -BeGreaterThan 0
+    }
+
+    It 'opens a window in <Name> only inside the body of a try statement that has a finally block' -ForEach @(
+        Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File |
+            Where-Object { $_.Name -ne 'WindowHarness.ps1' } |
+            ForEach-Object { @{ Name = $_.Name; Path = $_.FullName } }
+    ) {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile($Path, [ref]$null, [ref]$null)
+        $opens = @($ast.FindAll({
+                    param($n)
+                    ($n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Open-TestWindow') -or
+                    ($n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $n.Member.Extent.Text -in 'Show', 'ShowDialog')
+                }, $true))
+        foreach ($o in $opens) {
+            $covered = $false
+            for ($p = $o.Parent; $p; $p = $p.Parent) {
+                if ($p -is [System.Management.Automation.Language.TryStatementAst] -and $p.Finally -and
+                    $o.Extent.StartOffset -ge $p.Body.Extent.StartOffset -and $o.Extent.EndOffset -le $p.Body.Extent.EndOffset) { $covered = $true; break }
+            }
+            $covered | Should -BeTrue -Because ('line {0} opens a window outside a try with a finally block' -f $o.Extent.StartLineNumber)
+        }
+    }
+
+    It 'finds window opening calls in the test folder' {
+        $count = 0
+        foreach ($f in Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File | Where-Object { $_.Name -ne 'WindowHarness.ps1' }) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$null)
+            $count += @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Open-TestWindow' }, $true)).Count
+        }
+        $count | Should -BeGreaterThan 0
+    }
+}
+

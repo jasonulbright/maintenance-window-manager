@@ -153,10 +153,11 @@ function Invoke-WpfSta {
         [Parameter(Mandatory)][scriptblock]$Script,
         [hashtable]$Arguments = @{}
     )
-    $rs = Get-WpfSession
-    $rs.SessionStateProxy.SetVariable('Arguments', $Arguments)
+    $rs = $null
     $ps = [powershell]::Create()
     try {
+        $rs = Get-WpfSession
+        $rs.SessionStateProxy.SetVariable('Arguments', $Arguments)
         $ps.Runspace = $rs
         [void]$ps.AddScript($Script.ToString(), $false)
         $out = @($ps.Invoke())
@@ -167,5 +168,16 @@ function Invoke-WpfSta {
     }
     finally {
         $ps.Dispose()
+        # Close every window that the call left open (a failed call, a window that the script block did not close).
+        if ($rs -and $rs.RunspaceStateInfo.State -eq 'Opened') {
+            $cleanup = [powershell]::Create()
+            try {
+                $cleanup.Runspace = $rs
+                [void]$cleanup.AddScript('if (Get-Command Close-SuiteOpenWindow -ErrorAction SilentlyContinue) { [void](Close-SuiteOpenWindow) }', $false)
+                [void]$cleanup.Invoke()
+            }
+            catch { $null = $_ }
+            finally { $cleanup.Dispose() }
+        }
     }
 }

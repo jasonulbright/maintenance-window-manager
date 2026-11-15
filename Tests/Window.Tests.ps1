@@ -69,6 +69,8 @@ BeforeAll {
         $case.Config = $script:AppConfig
         $script:Measured[$key] = Invoke-WpfSta -Arguments $case -Script {
             $cfg = $Arguments.Config
+            $w = $null
+            try {
             $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark -Width $Arguments.W -Height $Arguments.H
             $out = @()
             foreach ($view in $cfg.Views) {
@@ -84,8 +86,9 @@ BeforeAll {
                     TitleBar    = Get-TitleBarContrast $w
                 }
             }
-            $w.Close()
             , $out
+            }
+            finally { if ($w) { $w.Close() } }
         }
     }
 }
@@ -95,9 +98,12 @@ AfterAll { if (Get-Command Close-WpfSession -ErrorAction SilentlyContinue) { Clo
 Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
     It 'loads as a MetroWindow with the app title and a minimum size that fits 1024x720' {
         $r = Invoke-WpfSta -Arguments @{ Xaml = $script:AppConfig.Xaml } -Script {
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
-            $o = [PSCustomObject]@{ Type = $w.GetType().FullName; Title = $w.Title; MinW = $w.MinWidth; MinH = $w.MinHeight }
-            $w.Close(); $o
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Xaml)
+                [PSCustomObject]@{ Type = $w.GetType().FullName; Title = $w.Title; MinW = $w.MinWidth; MinH = $w.MinHeight }
+            }
+            finally { if ($w) { $w.Close() } }
         }
         $r.Type | Should -Be 'MahApps.Metro.Controls.MetroWindow'
         $r.Title | Should -Be $script:AppConfig.Title
@@ -128,9 +134,13 @@ Describe 'Main window XAML' -Skip:(-not $script:WindowGuard.Allowed) {
 
     It 'shows the first view and keeps the others hidden' {
         $r = Invoke-WpfSta -Arguments @{ Config = $script:AppConfig } -Script {
-            $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Config.Xaml)
-            $o = foreach ($v in $Arguments.Config.Views) { [PSCustomObject]@{ Name = $v.Name; Vis = [string]$w.FindName($v.Container).Visibility } }
-            $w.Close(); , @($o)
+            $w = $null
+            try {
+                $w = Open-TestWindow -XamlPath (Join-Path $Root $Arguments.Config.Xaml)
+                $o = foreach ($v in $Arguments.Config.Views) { [PSCustomObject]@{ Name = $v.Name; Vis = [string]$w.FindName($v.Container).Visibility } }
+                , @($o)
+            }
+            finally { if ($w) { $w.Close() } }
         }
         $first = $script:AppConfig.Views[0].Name
         ($r | Where-Object Name -eq $first).Vis | Should -Be 'Visible'
