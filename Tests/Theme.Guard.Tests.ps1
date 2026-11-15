@@ -7,6 +7,7 @@
 #   (d) The site code and SMS Provider titles are bold 14 pt, the values are not.
 #   (e) Every button takes the shared themed style, and no style holds a color literal.
 #   (f) No raw exception text reaches the UI.
+#   (g) Titles, headers and labels are in Title Case (D-12).
 
 BeforeDiscovery {
     . "$PSScriptRoot\ThemeGuardHelpers.ps1"
@@ -462,5 +463,57 @@ Describe 'No raw exception text in the UI (f)' {
 
     It 'sends no raw exception text to a UI sink in <Name>' -ForEach $script:PsFilesD {
         @(Get-RawExceptionToUi -Path $Path) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Titles are in Title Case (g)' {
+    It 'recognizes Title Case' {
+        Test-TitleCase 'Maintenance Window Manager' | Should -BeTrue
+        Test-TitleCase 'Day of Week' | Should -BeTrue
+        Test-TitleCase 'Days After Patch Tuesday (0-30)' | Should -BeTrue
+        Test-TitleCase 'Add Target...' | Should -BeTrue
+        Test-TitleCase 'Export CSV' | Should -BeTrue
+        Test-TitleCase 'Maintenance Window Manager v1.2.1' | Should -BeTrue
+        Test-TitleCase 'Next 5 Occurrences' | Should -BeTrue
+        Test-TitleCase 'Remove selected' | Should -BeFalse
+        Test-TitleCase 'Target collection' | Should -BeFalse
+        Test-TitleCase 'new Window' | Should -BeFalse
+        Test-TitleCase 'Day Of Week' | Should -BeTrue
+    }
+
+    It 'has Title Case for every button, header, tab, field title and window title in <_.Source>' -ForEach $script:XamlDocsD {
+        $bad = @(Get-XamlTitle -Text $_.Text | Where-Object { -not (Test-TitleCase $_) })
+        $bad | Should -BeNullOrEmpty
+    }
+
+    It 'finds titles to check in the main window and in the dialogs' {
+        $main = @($script:XamlDocs | Where-Object { $_.Source -eq 'MainWindow.xaml' })[0]
+        @(Get-XamlTitle -Text $main.Text).Count | Should -BeGreaterThan 30
+        $dialogs = @($script:XamlDocs | Where-Object { $_.Source -like "$($script:ShellName) here-string*" })
+        @($dialogs | ForEach-Object { Get-XamlTitle -Text $_.Text }).Count | Should -BeGreaterThan 30
+    }
+
+    It 'has Title Case in the title of every confirmation and collection picker, and in the dialog titles and button texts of the script' {
+        $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:RepoRoot $script:ShellName), [ref]$null, [ref]$null)
+        $calls = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in 'Show-ThemedMessage', 'Show-ConfirmDialog', 'Show-CollectionPickerDialog' }, $true))
+        $calls.Count | Should -BeGreaterOrEqual 4
+        $bad = @()
+        foreach ($call in $calls) {
+            $el = @($call.CommandElements)
+            for ($i = 0; $i -lt $el.Count - 1; $i++) {
+                if ($el[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and $el[$i].ParameterName -eq 'Title' -and $el[$i + 1] -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+                    if (-not (Test-TitleCase ([string]$el[$i + 1].Value))) { $bad += [string]$el[$i + 1].Value }
+                }
+            }
+        }
+        # The window title and the button text that the script builds in variables (Edit or New, Save or Create).
+        $assigned = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -in '$titleText', '$okText' }, $true))
+        $assigned.Count | Should -BeGreaterOrEqual 4
+        foreach ($a in $assigned) {
+            foreach ($s in @($a.Right.FindAll({ param($n) $n -is [System.Management.Automation.Language.StringConstantExpressionAst] }, $true))) {
+                if (-not (Test-TitleCase ([string]$s.Value))) { $bad += [string]$s.Value }
+            }
+        }
+        $bad | Should -BeNullOrEmpty
     }
 }
