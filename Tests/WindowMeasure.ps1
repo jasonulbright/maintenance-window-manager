@@ -106,26 +106,9 @@ $script:MeasureFunctions = {
     }
 
     function Get-TitleBarContrast {
-        # Contrast of the title text on the active and on the inactive title bar.
+        # Each state with the caption text of its own state (SuiteCommon helper).
         param($Window)
-        $fg = Get-SolidColor $Window.TitleForeground
-        $result = [ordered]@{ Active = $null; Inactive = $null }
-        if (-not $fg) { return [PSCustomObject]$result }
-        # The light theme gives an inactive window its own caption text (dark gray on the light blue bar), as Set-SuiteTitleForeground does.
-        $fgInactive = $fg
-        if (-not $global:HarnessDark) {
-            try { $t = Get-SolidColor (& (Get-Module SuiteCommon) { (Get-SuiteThemeContext).Brushes.TitleBarInactiveText }); if ($t) { $fgInactive = $t } } catch { $null = $_ }
-        }
-        foreach ($state in 'Active', 'Inactive') {
-            $brush = if ($state -eq 'Active') { $Window.WindowTitleBrush } else { $Window.NonActiveWindowTitleBrush }
-            $bg = Get-SolidColor $brush
-            if (-not $bg) { continue }
-            $back = Merge-Color $bg.Color $bg.Opacity ([System.Windows.Media.Colors]::Black)
-            $textColor = if ($state -eq 'Inactive') { $fgInactive } else { $fg }
-            $front = Merge-Color $textColor.Color $textColor.Opacity $back
-            $result[$state] = (Get-ContrastRatio $front $back)
-        }
-        return [PSCustomObject]$result
+        return (Get-SuiteTitleBarContrast -Window $Window -IsDark ([bool]$global:HarnessDark))
     }
 
     function Get-ClippedText {
