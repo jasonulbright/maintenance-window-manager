@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.15.0023] - 2026-11-15
+
+## 29 guide images and the README image retaken with blue pressed buttons
+
 ### Added
 
 - Check dialog bodies and title bars against the theme in the window tests.
