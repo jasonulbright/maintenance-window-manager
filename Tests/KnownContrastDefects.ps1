@@ -3,30 +3,23 @@
 # violation is not listed (a new defect) and when a listed one no longer happens
 # (remove it here). Run Show-ContrastViolations.ps1 to print the current list.
 #
-# Text must reach 4.5:1 and a control border 3:1, enabled and disabled, in both
-# themes. The causes are shared by every suite tool: the SuiteCommon palette
-# (the disabled-button text), the MahApps disabled
-# style, the light text box border and the unselected tab header. The fix
-# belongs in app-packager-suite, then a sync of the vendored copy, not here.
+# Enabled text must reach 4.5:1 and an enabled control border 3:1, in both themes.
+# A disabled control is exempt (WCAG 1.4.3 exempts inactive components); the window
+# test requires it to look clearly dimmed instead. The causes of the listed defects
+# are shared by every suite tool: the light text box border and the unselected tab
+# header. The fix belongs in app-packager-suite, then a sync of the vendored copy, not here.
 
 function Get-KnownContrastDefect {
     param([Parameter(Mandatory)][ValidateSet('dark', 'light')][string]$Theme)
     switch ($Theme) {
         'dark' {
             @(
-                'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText', 'btnViewWindows:DisabledText',
-                'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
+                'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
         'light' {
             @(
-                'btnApplyTemplateBulk:DisabledText', 'btnApplyTemplateOne:DisabledText', 'btnDeleteTemplate:DisabledText',
-                'btnEditTemplate:DisabledText', 'btnEditWindow:DisabledText', 'btnExportCsv:DisabledText',
-                'btnExportHtml:DisabledText', 'btnNewTemplate:DisabledText', 'btnNewWindow:DisabledText',
-                'btnOptions:DisabledText', 'btnRefresh:DisabledText', 'btnRemoveWindow:DisabledText',
-                'btnToggleEnabled:DisabledText', 'btnViewCoverage:DisabledText', 'btnViewTemplates:DisabledText',
-                'btnViewWindows:DisabledText', 'cboStatusFilter:DisabledText', 'cboStatusFilter:EnabledText',
-                'txtTemplateScheduleSummary:DisabledBorder', 'txtTemplateScheduleSummary:EnabledBorder'
+                'cboStatusFilter:EnabledText', 'txtTemplateScheduleSummary:EnabledBorder'
             )
         }
     }
