@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.15.0024] - 2026-11-15
+
+## 3 disabled controls now dim
+
 ### Changed
 
 - Treat disabled controls as exempt from 4.5:1 text contrast and require them to look dimmed.
