@@ -15,6 +15,8 @@ try {
     foreach ($dark in $true, $false) {
         $r = Invoke-WpfSta -Arguments @{ Dark = $dark; Config = $script:AppConfig } -Script {
             $cfg = $Arguments.Config
+            $w = $null
+            try {
             $w = Open-TestWindow -XamlPath (Join-Path $Root $cfg.Xaml) -Dark $Arguments.Dark
             $out = @()
             foreach ($view in $cfg.Views) {
@@ -22,7 +24,9 @@ try {
                 Initialize-ShellTheme -Window $w -Dark $Arguments.Dark -Views $cfg.Views -OptionsButtonName $cfg.OptionsButton -LogLabelName $cfg.LogLabel -ActiveView $view.Name -WorkflowButtonNames $cfg.WorkflowButtons
                 $out += [PSCustomObject]@{ Text = @(Get-TextContrast $w); Interactive = @(Get-InteractiveContrast $w); TitleBar = Get-TitleBarContrast $w }
             }
-            $w.Close(); , $out
+            , $out
+            }
+            finally { if ($w) { $w.Close() } }
         }
         $keys = New-Object System.Collections.Generic.List[string]
         foreach ($v in $r) {
