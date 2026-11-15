@@ -28,8 +28,9 @@ Use it after a change that alters the window, and before a release.
 ```
 
 2. Wait for the command to end. It prints a warning for each step that failed.
-3. Open every changed image and check it. Look for clipped text, empty grids and stale version strings.
-4. Run the documentation test: `Invoke-Pester .\Tests\Documentation.Tests.ps1`.
+3. Copy the images that the README shows: `.\tools\guide-capture\Sync-ReadmeImages.ps1`. The file `tools\guide-capture\readme-images.json` maps each README image to its file in `docs\images`.
+4. Open every changed image and check it. Look for clipped text, empty grids and stale version strings.
+5. Run the documentation test and the README image test: `Invoke-Pester .\Tests\Documentation.Tests.ps1, .\Tests\Readme.Images.Guard.Tests.ps1`.
 
 A second run inside the command does the missing-console test on a copy of the tool whose module lookup returns nothing.
 
