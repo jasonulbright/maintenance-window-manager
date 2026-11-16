@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Compact density for a 1080p work area: 36 px sidebar, 26 px controls, 24 px rows.
+- Open maximized on first start; capture the maximized window, the work area of a 1080p screen.
+- Share the free height of the Windows view between the grid and the detail pane.
+- Guide capture reports a verdict and lists guide images that no capture run produced.
+
 ## [2026.11.15.0024] - 2026-11-15
 
 ## 3 disabled controls now dim

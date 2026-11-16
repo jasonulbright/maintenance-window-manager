@@ -1,5 +1,5 @@
 $win = Start-App 'start-maintenancewindowmgr.ps1' 'Maintenance Window Manager'
-Size-Win $win 1440 900
+Maximize-Win $win
 $win = Find-Top 'Maintenance Window Manager' 10
 function Idle([string]$id = 'btnRefresh', [int]$sec = 300) { Start-Sleep -Seconds 2; if (-not (Wait-Until { $b = Get-El $win $id -Quiet; $b -and $b.Current.IsEnabled } $sec)) { throw ("Timeout: $id did not become enabled in $sec seconds.") }; Start-Sleep -Seconds 2 }
 function Rows($grid) { @((Get-El $win $grid).FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::DataItem)))) }
@@ -28,6 +28,7 @@ Section 'first run' {
 }
 Section 'refresh' {
   Invoke-El (Get-El $win 'btnRefresh'); Start-Sleep -Seconds 3; Shot $win 'refresh-running'; Idle; Shot $win 'windows'
+  Extra 'samples' { Sample-El (Get-El $win 'btnViewWindows') 'sidebar active'; Sample-El (Get-El $win 'btnRefresh') 'inline button'; Sample-El (Get-El $win 'btnOptions') 'sidebar options' }
 }
 Section 'window detail' {
   $r = Rows 'gridWindows'; Log ('window rows: ' + $r.Count)
