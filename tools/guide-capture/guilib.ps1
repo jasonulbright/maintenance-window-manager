@@ -46,6 +46,42 @@ function Size-Win($Win, [int]$W = 1440, [int]$H = 900) {
     $w2 = [Math]::Min($W, $sw.Width); $h2 = [Math]::Min($H, $sw.Height - 40)
     [void][NativeUi]::MoveWindow($hh, 0, 0, $w2, $h2, $true); Start-Sleep -Milliseconds 900
 }
+function Maximize-Win($Win) {
+    # The design size is the work area of a maximized window on a 1080p screen (D-20): the window fills it, nothing is hardcoded.
+    $Win.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Maximized)
+    Start-Sleep -Milliseconds 1500
+    $wa = [System.Windows.Forms.SystemInformation]::WorkingArea
+    Log ('work area {0}x{1}' -f $wa.Width, $wa.Height)
+}
+# Evidence helpers: sample the screen colors of a control. A sample is part of the verdict of the capture run (D-21).
+function Get-Px([int]$x, [int]$y) {
+    $b = New-Object System.Drawing.Bitmap 1, 1; $g = [System.Drawing.Graphics]::FromImage($b)
+    $g.CopyFromScreen($x, $y, 0, 0, (New-Object System.Drawing.Size 1, 1)); $g.Dispose()
+    $c = $b.GetPixel(0, 0); $b.Dispose(); $c
+}
+function Get-Lum($c) {
+    $f = { param($v) $s = $v / 255.0; if ($s -le 0.03928) { $s / 12.92 } else { [Math]::Pow(($s + 0.055) / 1.055, 2.4) } }
+    0.2126 * (& $f $c.R) + 0.7152 * (& $f $c.G) + 0.0722 * (& $f $c.B)
+}
+function Get-Contrast($a, $b) { $l1 = Get-Lum $a; $l2 = Get-Lum $b; ([Math]::Max($l1, $l2) + 0.05) / ([Math]::Min($l1, $l2) + 0.05) }
+function Sample-El($El, [string]$Label) {
+    # The background is the most frequent color along a strip through the middle of the control. The text color is the
+    # color that differs most from it. The strip skips the border and the first pixels.
+    $r = $El.Current.BoundingRectangle
+    $y = [int]($r.Y + $r.Height / 2); $count = @{}; $px = New-Object System.Collections.Generic.List[object]
+    $span = [Math]::Min(160, [int]($r.Width) - 24)
+    foreach ($dx in 0..([Math]::Max(1, $span / 2))) {
+        foreach ($dy in -3..3) { $c = Get-Px ([int]($r.X + 12 + $dx * 2)) ($y + $dy); $px.Add($c); $k = $c.ToArgb(); $count[$k] = 1 + [int]$count[$k] }
+    }
+    $bgKey = ($count.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 1).Key
+    $bg = [System.Drawing.Color]::FromArgb($bgKey); $best = $bg; $bestD = -1
+    foreach ($c in $px) { $d = [Math]::Abs($c.R - $bg.R) + [Math]::Abs($c.G - $bg.G) + [Math]::Abs($c.B - $bg.B); if ($d -gt $bestD) { $bestD = $d; $best = $c } }
+    Log ('SAMPLE {0}: bg=#{1:X2}{2:X2}{3:X2} text=#{4:X2}{5:X2}{6:X2} contrast={7:N1}' -f $Label, $bg.R, $bg.G, $bg.B, $best.R, $best.G, $best.B, (Get-Contrast $bg $best))
+}
+function Extra([string]$Name, [scriptblock]$Body) {
+    # A step that only gathers evidence. A failure logs WARN, so that it never stops the capture.
+    try { & $Body } catch { Log ('WARN extra ' + $Name + ': ' + $_.Exception.Message) }
+}
 function Shot($Win, [string]$Name, [switch]$Hover) {
     if (-not $Hover) { [void][NativeUi]::SetCursorPos(1900, 1060); if ($Win.Current.ClassName -eq 'MetroWindow') { try { (Get-El $Win 'txtLog' -Quiet).SetFocus() } catch { $null = $_ } } }
     Start-Sleep -Milliseconds 1300
