@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Retake all guide images and the README image at 1080p, both themes.
 - Compact density for a 1080p work area: 36 px sidebar, 26 px controls, 24 px rows.
 - Open maximized on first start; capture the maximized window, the work area of a 1080p screen.
 - Share the free height of the Windows view between the grid and the detail pane.
