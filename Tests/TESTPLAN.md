@@ -49,4 +49,3 @@ Window guard: `Window.Tests.ps1` opens windows only when the environment variabl
 - The schedule editor in the New Window and Template dialogs reads numeric text boxes with `[int]`. An empty box throws. The dialogs build inside the script and need a live window; not driven here.
 - The refresh handler, the busy overlay and the dialogs' button logic run inside the window with a site. The lab run covers the module calls that they make, not the clicks.
 - `Get-NextOccurrences` for a monthly-by-weekday window that starts in the fifth week approximates the date. The tests check order, count and weekday only.
-- The settings save in SuiteCommon is not atomic. The fix belongs in `app-packager-suite`.
