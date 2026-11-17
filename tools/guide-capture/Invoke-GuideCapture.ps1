@@ -46,6 +46,7 @@ param(
     [string]$SiteCode = 'MCM',
     [Parameter(Mandatory)][string]$SmsProvider,
     [int]$Minutes = 15,
+    [int]$LockWaitMinutes = 90,
     [string]$OutDir,
     [switch]$AddNew
 )
@@ -60,7 +61,8 @@ $prefsFile = 'MaintWindowMgr.prefs.json'
 # Own folder and own task name per app, so that two captures in the lab never meet. The C:\guide folder itself stays.
 $root = "C:\guide\$app"
 $taskName = "GuideShots-$app"
-$lockFile = 'C:\guide\capture.lock'
+$lockPath = 'C:\guide\capture.lock'
+$lockText = '{0}|{1}|{2}' -f $app, $PID, (Get-Date).ToString('o')
 $haveLock = $false
 $settings = @{ SiteCode = $SiteCode; SMSProvider = $SmsProvider } | ConvertTo-Json
 $failed = New-Object System.Collections.Generic.List[string]
@@ -69,27 +71,43 @@ New-Item -ItemType Directory $tmp | Out-Null
 $session = $null
 try {
     $session = New-PSSession -ComputerName $Target -Credential $LabCredential
-    # One capture at a time per lab computer. The remote step creates the lock file with CreateNew. An existing file
-    # raises an IOException, which the step turns into the answer 'busy'. A lock file older than 60 minutes is stale
-    # and is removed. Any other error stops the capture. The answer does not depend on a message text.
-    $lockEnd = (Get-Date).AddMinutes(60)
-    do {
-        $answer = Invoke-Command $session {
-            param($l)
-            New-Item -ItemType Directory 'C:\guide' -Force -ErrorAction Stop | Out-Null
-            try {
-                $fs = [System.IO.File]::Open($l, [System.IO.FileMode]::CreateNew)
-                $fs.Close()
-                return 'acquired'
-            }
+    # The lock (D-16): C:\guide\capture.lock, text owner|pid|start. New-Item fails with an IOException when the file exists: busy.
+    # A lock is stale only when its last write is older than 30 minutes AND its owner pid runs neither on the lab computer nor on
+    # this computer. The lock of a live owner is never removed. A lock in a format this tool does not know blocks and is reported.
+    # A removed lock is reported with a warning. The holder refreshes the lock in its poll loop.
+    $lockEnd = (Get-Date).AddMinutes($LockWaitMinutes)
+    $unknownReported = $false
+    while (-not $haveLock) {
+        $got = Invoke-Command $session {
+            param($path, $text)
+            New-Item -ItemType Directory -Path (Split-Path -Path $path -Parent) -Force | Out-Null
+            try { $null = New-Item -ItemType File -Path $path -Value $text -ErrorAction Stop; 'taken' }
             catch [System.IO.IOException] {
-                if (((Get-Date) - (Get-Item -LiteralPath $l -ErrorAction Stop).LastWriteTime).TotalMinutes -gt 60) { Remove-Item -LiteralPath $l -Force -ErrorAction Stop; return 'stale' }
-                return 'busy'
+                $item = Get-Item -LiteralPath $path -ErrorAction SilentlyContinue
+                if (-not $item) { 'gone' }
+                else {
+                    $held = ([string](Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)).Trim()
+                    if ($held -notmatch '^[^|\s][^|]*\|\d+\|\d{4}-\d{2}-\d{2}T') { 'unknown: ' + $held }
+                    else { 'held: {0}|{1}|{2}' -f [int]((Get-Date) - $item.LastWriteTime).TotalMinutes, [bool](Get-Process -Id ([int]($held -split '\|')[1]) -ErrorAction SilentlyContinue), $held }
+                }
             }
-        } -ArgumentList $lockFile -ErrorAction Stop
-        if ($answer -eq 'acquired') { $haveLock = $true } else { Start-Sleep -Seconds 30 }
-    } until ($haveLock -or (Get-Date) -gt $lockEnd)
-    if (-not $haveLock) { throw "Another capture holds $lockFile. This capture waited 60 minutes." }
+        } -ArgumentList $lockPath, $lockText
+        if ($got -eq 'taken') { $haveLock = $true; continue }
+        if ($got -eq 'gone') { continue }
+        if ($got -like 'unknown:*') {
+            if (-not $unknownReported) { Write-Warning "The lab lock $lockPath has a format this tool does not know and blocks the capture ($got). Waiting; the lock is not removed."; $unknownReported = $true }
+        }
+        elseif ($got -like 'held:*') {
+            $age, $aliveLab, $heldText = $got.Substring(6) -split '\|', 3
+            $ownerPid = [int]($heldText -split '\|')[1]
+            if ([int]$age -gt 30 -and $aliveLab -ne 'True' -and -not (Get-Process -Id $ownerPid -ErrorAction SilentlyContinue)) {
+                $removed = Invoke-Command $session { param($path, $text) if (([string](Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)).Trim() -eq $text) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue; $true } else { $false } } -ArgumentList $lockPath, $heldText
+                if ($removed) { Write-Warning "The stale lab lock $lockPath was removed ($heldText; last write $age minutes ago; owner pid $ownerPid is not running)."; continue }
+            }
+        }
+        if ((Get-Date) -gt $lockEnd) { throw "Another capture holds $lockPath. The wait of $LockWaitMinutes minutes is over." }
+        Start-Sleep -Seconds 15
+    }
     foreach ($run in @(@{ Steps = 'steps-guide.ps1'; Prefs = $false }, @{ Steps = 'steps-console-missing.ps1'; Prefs = $true })) {
         $dest = $root
         # Stop only the leftovers of an earlier capture: the capture runner and the copy of this app.
@@ -120,6 +138,7 @@ try {
         $done = $false
         do {
             Start-Sleep 5
+            Invoke-Command $session { param($p) (Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).LastWriteTime = Get-Date } -ArgumentList $lockPath
             $state = Invoke-Command $session { param($r, $t) [pscustomobject]@{ Done = (Test-Path (Join-Path $r 'ui\out\finished.flag')); Task = (Get-ScheduledTask $t -ErrorAction SilentlyContinue).State; Result = (Get-ScheduledTaskInfo $t -ErrorAction SilentlyContinue).LastTaskResult } } -ArgumentList $root, $taskName
             $done = $state.Done
             # The task is not running any more, no finished flag exists and the last result is an error: stop now.
@@ -167,7 +186,7 @@ finally {
         if ($haveLock) {
             try { Invoke-Command $session { param($t) Unregister-ScheduledTask $t -Confirm:$false -ErrorAction SilentlyContinue } -ArgumentList $taskName } catch { Write-Warning "Cleanup of the scheduled task failed: $($_.Exception.Message)" }
             try { Invoke-Command $session { param($r) Remove-Item $r -Recurse -Force -ErrorAction SilentlyContinue } -ArgumentList $root } catch { Write-Warning "Cleanup of $root failed: $($_.Exception.Message)" }
-            try { Invoke-Command $session { param($l) Remove-Item $l -Force -ErrorAction SilentlyContinue } -ArgumentList $lockFile } catch { Write-Warning "Removing $lockFile failed: $($_.Exception.Message)" }
+            try { Invoke-Command $session { param($path, $text) if ((Test-Path -LiteralPath $path) -and (([string](Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)).Trim() -eq $text)) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue } } -ArgumentList $lockPath, $lockText } catch { Write-Warning "Removing $lockPath failed: $($_.Exception.Message)" }
         }
         try { Remove-PSSession $session } catch { Write-Warning "Closing the session failed: $($_.Exception.Message)" }
     }
