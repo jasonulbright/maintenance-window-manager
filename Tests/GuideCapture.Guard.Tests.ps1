@@ -17,20 +17,27 @@ Describe 'The capture tool takes the lab lock' {
         @($errors) | Should -BeNullOrEmpty
     }
 
-    It 'uses C:\guide\capture.lock' {
-        $script:Code | Should -Match "\`$lockFile = 'C:\\guide\\capture\.lock'"
+    It 'uses C:\guide\capture.lock and the text owner|pid|start' {
+        $script:Code | Should -Match "\`$lockPath = 'C:\\guide\\capture\.lock'"
+        $script:Code | Should -Match "\`$lockText = '\{0\}\|\{1\}\|\{2\}' -f \`$app, \`$PID"
     }
 
-    It 'creates the lock with CreateNew and treats an IOException as busy' {
-        $script:Code | Should -Match 'FileMode\]::CreateNew'
+    It 'creates the lock with New-Item and treats an IOException as busy' {
+        $script:Code | Should -Match 'New-Item -ItemType File -Path \$path -Value \$text -ErrorAction Stop'
         $script:Code | Should -Match 'catch \[System\.IO\.IOException\]'
-        $script:Code | Should -Match "return 'busy'"
+        $script:Code | Should -Match "'held: \{0\}\|\{1\}\|\{2\}'"
     }
 
-    It 'removes a lock that is older than 60 minutes and waits at most 60 minutes' {
-        $script:Code | Should -Match 'TotalMinutes -gt 60'
-        $script:Code | Should -Match '\(Get-Date\)\.AddMinutes\(60\)'
-        $script:Code | Should -Match 'Another capture holds'
+    It 'treats a lock as stale only after 30 minutes with no running owner, and reports the removal (D-16)' {
+        $script:Code | Should -Match '\[int\]\$age -gt 30 -and \$aliveLab -ne ''True'' -and -not \(Get-Process -Id \$ownerPid'
+        $script:Code | Should -Match 'The stale lab lock .* was removed'
+        $script:Code | Should -Match '''unknown: '' \+ \$held'
+        $script:Code | Should -Not -Match 'TotalMinutes\)? -gt 60'
+        $script:Code | Should -Match '\(Get-Date\)\.AddMinutes\(\$LockWaitMinutes\)'
+    }
+
+    It 'refreshes the lock in the poll loop' {
+        $script:Code | Should -Match 'LastWriteTime = Get-Date'
     }
 
     It 'takes the lock before it registers the scheduled task' {
@@ -41,11 +48,11 @@ Describe 'The capture tool takes the lab lock' {
         $register | Should -BeGreaterThan $lock
     }
 
-    It 'releases the lock in the finally, only when this capture took it' {
+    It 'releases the lock in the finally, only when this capture took it and the text is still its own' {
         $finally = $script:Try.Finally.Extent.Text
         $finally | Should -Match 'if \(\$haveLock\)'
-        $finally | Should -Match 'Remove-Item \$l -Force'
-        $finally.IndexOf('Remove-Item $l -Force') | Should -BeGreaterThan $finally.IndexOf('Unregister-ScheduledTask')
+        $finally | Should -Match '-eq \$text\)'
+        $finally.IndexOf('Remove-Item -LiteralPath $path -Force') | Should -BeGreaterThan $finally.IndexOf('Unregister-ScheduledTask')
     }
 
     It 'never deletes the C:\guide folder' {
