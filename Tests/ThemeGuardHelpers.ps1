@@ -275,3 +275,71 @@ function Get-XamlTitle {
         if ($value -and $value -notmatch '^\{' -and $value -notmatch '^(On|Off)$') { $value }
     }
 }
+
+
+# Returns one text per button problem in a vendored SuiteCommon dialog (a here-string of Lib\SuiteCommon\SuiteCommon.psm1).
+# The dialogs do not use the shared styles of MainWindow.xaml: each one defines its own ThemedButtonStyle. Every Button has
+# a Style whose chain of BasedOn styles ends at ThemedButtonStyle. ThemedButtonStyle is the only button style that is based
+# on MahApps directly. No button, style or control template has a literal color.
+function Get-SuiteDialogButtonViolation {
+    param([string]$Text, [string]$Source)
+    $keyNs = 'http://schemas.microsoft.com/winfx/2006/xaml'
+    [xml]$xml = $Text
+    $found = New-Object System.Collections.Generic.List[string]
+    $leaf = { param($n) if ([string]::IsNullOrEmpty($n)) { '' } else { ($n -split '[.:]')[-1] } }
+    $resKey = { param($v) if ($v -match '^\{(?:Static|Dynamic)Resource\s+([^}\s]+)\}$') { $Matches[1] } else { '' } }
+    $isLiteral = { param($v) ($v -match '^\s*#[0-9A-Fa-f]{3,8}\s*$') -or ($v -match '^\s*[A-Za-z]+\s*$') }
+    $styleBase = @{}
+    foreach ($st in @($xml.SelectNodes("//*[local-name()='Style'][@TargetType='Button']"))) { $styleBase[$st.GetAttribute('Key', $keyNs)] = $st.GetAttribute('BasedOn') }
+    $reachesThemed = {
+        param($key)
+        $seen = @{}
+        while ($key -and -not $seen.ContainsKey($key)) {
+            if ($key -eq 'ThemedButtonStyle') { return $true }
+            $seen[$key] = $true
+            if (-not $styleBase.ContainsKey($key)) { return $false }
+            $key = & $resKey $styleBase[$key]
+        }
+        return $false
+    }
+    foreach ($key in @($styleBase.Keys)) {
+        if ($key -ne 'ThemedButtonStyle' -and $styleBase[$key] -match 'MahApps\.') { [void]$found.Add(('{0}: Button style {1} is based on MahApps and not on ThemedButtonStyle' -f $Source, $key)) }
+    }
+    foreach ($btn in @($xml.SelectNodes("//*[local-name()='Button']"))) {
+        $name = $btn.GetAttribute('Name', $keyNs)
+        $key = & $resKey $btn.GetAttribute('Style')
+        if (-not $key -or -not (& $reachesThemed $key)) { [void]$found.Add(('{0}: Button {1} does not take ThemedButtonStyle' -f $Source, $name)) }
+        foreach ($attr in @($btn.Attributes)) {
+            if ((& $leaf $attr.Name) -match '(Background|Foreground|Brush)$' -and (& $isLiteral $attr.Value)) { [void]$found.Add(('{0}: Button {1} sets {2} to the literal {3}' -f $Source, $name, $attr.Name, $attr.Value)) }
+        }
+    }
+    $scopes = @($xml.SelectNodes("//*[local-name()='Style']")) + @($xml.SelectNodes("//*[local-name()='ControlTemplate']"))
+    foreach ($scope in $scopes) {
+        $key = $scope.GetAttribute('Key', $keyNs)
+        foreach ($node in @($scope.SelectNodes('descendant-or-self::*'))) {
+            foreach ($attr in @($node.Attributes)) {
+                $l = & $leaf $attr.Name
+                if ($l -eq 'Value') {
+                    if ((& $leaf $node.GetAttribute('Property')) -notmatch '(Background|Foreground|Brush)$') { continue }
+                }
+                elseif ($l -notmatch '^(Color|Fill|Stroke)$' -and $l -notmatch '(Background|Foreground|Brush)$') { continue }
+                if (& $isLiteral $attr.Value) { [void]$found.Add(('{0}: {1} {2} uses the literal color {3}' -f $Source, $scope.LocalName, $key, $attr.Value)) }
+            }
+        }
+    }
+    return $found.ToArray()
+}
+
+# The XAML here-strings of the vendored SuiteCommon: its dialogs and its control templates.
+function Get-SuiteCommonXamlDocument {
+    $raw = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'Lib\SuiteCommon\SuiteCommon.psm1') -Raw
+    $docs = @()
+    $i = 0
+    foreach ($m in [regex]::Matches($raw, "(?s)@'\r?\n(\s*<.*?)\r?\n'@")) {
+        $text = $m.Groups[1].Value
+        if ($text -notmatch 'xmlns="http://schemas\.microsoft\.com/winfx/2006/xaml/presentation"') { continue }
+        $i++
+        $docs += [PSCustomObject]@{ Source = ('SuiteCommon.psm1 here-string {0}' -f $i); Text = $text }
+    }
+    return $docs
+}

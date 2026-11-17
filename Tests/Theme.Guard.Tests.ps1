@@ -517,3 +517,25 @@ Describe 'Titles are in Title Case (g)' {
         $bad | Should -BeNullOrEmpty
     }
 }
+
+
+Describe 'Vendored SuiteCommon dialogs take ThemedButtonStyle (e)' {
+    # The dialogs of SuiteCommon are vendored code. The suite repository (app-packager-suite) fixes them. This check keeps them fixed.
+    It 'has no unthemed button in the vendored SuiteCommon XAML in <_.Source>' -ForEach @(Get-SuiteCommonXamlDocument | Where-Object { $_.Text -match '<Button\b' }) {
+        $bad = @(Get-SuiteDialogButtonViolation -Text $_.Text -Source $_.Source)
+        $bad | Should -BeNullOrEmpty
+    }
+
+    It 'finds the dialogs of SuiteCommon' {
+        @(Get-SuiteCommonXamlDocument | Where-Object { $_.Text -match '<Button\b' }).Count | Should -BeGreaterOrEqual 3
+    }
+
+    It 'flags a button that has no style, a style based on MahApps and a literal color' {
+        $ns = 'xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"'
+        $themed = '<Style x:Key="ThemedButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button.Square}"/>'
+        @(Get-SuiteDialogButtonViolation -Text "<Grid $ns><Button x:Name=`"a`"/></Grid>" -Source 's').Count | Should -Be 1
+        @(Get-SuiteDialogButtonViolation -Text "<Grid $ns><Grid.Resources>$themed<Style x:Key=`"S`" TargetType=`"Button`" BasedOn=`"{StaticResource MahApps.Styles.Button.Square}`"/></Grid.Resources><Button x:Name=`"a`" Style=`"{StaticResource S}`"/></Grid>" -Source 's').Count | Should -Be 2
+        @(Get-SuiteDialogButtonViolation -Text "<Grid $ns><Grid.Resources>$themed</Grid.Resources><Button x:Name=`"a`" Style=`"{StaticResource ThemedButtonStyle}`" Background=`"Red`"/></Grid>" -Source 's').Count | Should -Be 1
+        @(Get-SuiteDialogButtonViolation -Text "<Grid $ns><Grid.Resources>$themed<Style x:Key=`"S`" TargetType=`"Button`" BasedOn=`"{StaticResource ThemedButtonStyle}`"/></Grid.Resources><Button x:Name=`"a`" Style=`"{StaticResource S}`"/></Grid>" -Source 's').Count | Should -Be 0
+    }
+}
