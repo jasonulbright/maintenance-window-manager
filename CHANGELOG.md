@@ -15,6 +15,10 @@
 - Add a guard that every button of the vendored SuiteCommon dialogs takes ThemedButtonStyle, and vendor the dialogs that do.
 - Vendor SuiteCommon with the atomic settings save: the settings file is written to a temp file and replaced in one step, so a failed write cannot leave it truncated.
 
+### Added
+
+- Add the capture lock test, and drop the stale inactive title bar note from the test plan.
+
 ## [2026.11.15.0024] - 2026-11-15
 
 ## 3 disabled controls now dim
