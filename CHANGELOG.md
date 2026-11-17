@@ -10,6 +10,10 @@
 - Share the free height of the Windows view between the grid and the detail pane.
 - Guide capture reports a verdict and lists guide images that no capture run produced.
 
+### Fixed
+
+- Add a guard that every button of the vendored SuiteCommon dialogs takes ThemedButtonStyle, and vendor the dialogs that do.
+
 ## [2026.11.15.0024] - 2026-11-15
 
 ## 3 disabled controls now dim
