@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [2026.11.18.0025] - 2026-11-18
+
+## 11 changes: window reads with retry and notes, Cancel, 1080p layout
+
 ### Changed
 
 - Retake all guide images and the README image at 1080p, both themes.
