@@ -237,6 +237,48 @@ function Get-PowerShellTextItem {
         if (-not $t.Pipeline) { continue }
         foreach ($s in (Get-StringNodeText -Node $t.Pipeline)) { if (-not $s.Here) { & $emit $s.Text $s.Line 'throw' } }
     }
+    # 3b. any other sentence-like string literal: a status text kept in a variable, a hashtable value, a method argument
+    $allStrings = $ast.FindAll({
+            param($n)
+            $n -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+            $n -is [System.Management.Automation.Language.ExpandableStringExpressionAst]
+        }, $true)
+    foreach ($sc in $allStrings) {
+        if ($sc.StringConstantType -like 'Here*') { continue }
+        $p = $sc.Parent
+        if ($p -is [System.Management.Automation.Language.MemberExpressionAst] -and $p.Member -eq $sc) { continue }
+        if ($p -is [System.Management.Automation.Language.IndexExpressionAst] -and $p.Index -eq $sc) { continue }
+        if ($p -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and $p.Member -eq $sc) { continue }
+        if ($p -is [System.Management.Automation.Language.CommandAst] -and $p.CommandElements[0] -eq $sc) { continue }
+        $raw = ($sc.Value -replace '\s+', ' ').Trim()
+        if ($raw -notmatch '^[A-Z].{10,}[.!?:]$') { continue }
+        if (-not (Test-ProseCandidate -Text (ConvertTo-FormatFreeText -Text $raw) -Strict:$true)) { continue }
+        & $emit $sc.Value $sc.Extent.StartLineNumber 'string-literal'
+    }
+    # 3c. display text of any shape: a hashtable value under a text key, and an argument of a call that takes display text
+    $textKeys = '^(Label|Tip|ToolTip|Text|Title|Hint|Watermark|Placeholder|Description|Message|Caption|Header|Content)$'
+    foreach ($ht in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.HashtableAst] }, $true)) {
+        foreach ($kv in $ht.KeyValuePairs) {
+            $k = $kv.Item1
+            if ($k -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $k.Value -match $textKeys) {
+                foreach ($s in (Get-StringNodeText -Node $kv.Item2)) { if (-not $s.Here) { & $emit $s.Text $s.Line ('hashtable:' + $k.Value) } }
+            }
+        }
+    }
+    foreach ($im in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)) {
+        $mn = $im.Member
+        if ($mn -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $mn.Value -match 'Watermark|ToolTip|Placeholder|SetText|SetHint|ShowMessage') {
+            foreach ($a in $im.Arguments) {
+                foreach ($s in (Get-StringNodeText -Node $a)) { if (-not $s.Here) { & $emit $s.Text $s.Line ('call:' + $mn.Value) } }
+            }
+        }
+    }
+    foreach ($cmd in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+        $cn = $cmd.GetCommandName()
+        if ($cn -and $cn -match 'Watermark|ToolTip|Placeholder|Hint') {
+            foreach ($s in (Get-StringNodeText -Node $cmd)) { if (-not $s.Here) { & $emit $s.Text $s.Line ('call:' + $cn) } }
+        }
+    }
     # 4. XAML in here-strings
     $here = $ast.FindAll({
             param($n)
@@ -425,6 +467,7 @@ function Get-BannedNameHit {
     $Root = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\', '/')
     $entries = @($Lexicon.entries | Where-Object { $_.PSObject.Properties['scope'] -and $_.scope -eq 'tracked-files' -and $_.FlaggedRegex.Count -gt 0 })
     foreach ($rel in (Get-TrackedFileList -Root $Root)) {
+        if ($rel -match '^(lexicon|Lib/Lexicon)/' -or $rel -eq 'Tests/Lexicon.Guard.Tests.ps1') { continue }   # the lexicon data and its guard test hold the banned patterns
         if ($script:BinaryExtensions -contains [IO.Path]::GetExtension($rel).ToLowerInvariant()) { continue }
         $full = Join-Path $Root $rel
         if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { continue }

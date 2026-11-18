@@ -429,7 +429,7 @@ function Update-StatusBarSummary {
     } elseif (-not $global:Prefs.SiteCode -or -not $global:Prefs.SMSProvider) {
         $parts += 'Open Options to configure site code and SMS Provider'
     } else {
-        $parts += 'Ready. Click Refresh.'
+        $parts += 'Ready. Select Refresh.'
     }
     if (@($script:Collections).Count -gt 0) { $parts += ('{0} collections' -f @($script:Collections).Count) }
     if (@($script:RawWindows).Count -gt 0)  { $parts += ('{0} windows'     -f @($script:RawWindows).Count) }
