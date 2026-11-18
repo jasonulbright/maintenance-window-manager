@@ -1,2 +1,0 @@
-free GB before: 132.33
-leftover lexfix run folders: 1; free GB after: 132.33
