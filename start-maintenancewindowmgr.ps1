@@ -15,7 +15,7 @@
       - .NET Framework 4.7.2+
       - MahApps.Metro DLLs in .\Lib\
       - MaintWindowMgrCommon module under .\Module\
-      - ConfigurationManager console (Get-CMDeviceCollection, Get-CMMaintenanceWindow, etc.)
+      - ConfigurationManager console (Get-CMDeviceCollection, Get-CMMaintenanceWindow, and so on)
 
 .NOTES
     ScriptName : start-maintenancewindowmgr.ps1
@@ -2036,7 +2036,7 @@ $window.Add_Loaded({
     try { [void](Initialize-SuiteFooter -Window $window -StatusName 'txtStatus' -OnOpenOptions { Show-OptionsDialog }) }
     catch { Write-Log ('Footer: {0}' -f $_.Exception.Message) -Level ERROR -Quiet; Add-LogLine 'The footer failed. The log file has the details.' }
     Sync-FooterSite
-    Add-LogLine 'Maintenance Window Manager ready. Configure Site Code and SMS Provider in Options, then click Refresh.'
+    Add-LogLine 'Maintenance Window Manager ready. Configure Site Code and SMS Provider in Options, then select Refresh.'
     Invoke-LoadTemplates
 })
 

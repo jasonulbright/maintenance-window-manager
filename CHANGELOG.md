@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Use ConfigMgr terms in the guide, the README, the log messages and the help text.
+- Use select in the steps of the README and in the start message of the log pane.
+
 ## [2026.11.18.0025] - 2026-11-18
 
 ## 11 changes: window reads with retry and notes, Cancel, 1080p layout

@@ -23,9 +23,9 @@ None.
 | `<action>: refresh first to establish a CM connection.` | Log | No refresh has run. | Select **Refresh**. |
 | `Edit: pick a window first.`, `Toggle: pick a window first.`, `Remove: pick a window first.` | Log | No row is selected. | Select a row. |
 | `Validation: target collection required.` and `Validation: window name required.` | Log | A field of the dialog is empty. | Fill the field. |
-| `Create returned null -- check log for details.` and `Schedule creation returned null.` | Log | The site refused the window or the schedule. | Read the log lines before. |
-| `The window was not updated -- check the log for details. The dialog stays open.` | Dialog | The site refused the change. | Read the log. Correct the values. |
-| `Rename aborted: failed to remove the old window.` | Log | The delete of the old window failed. The old window stays. | Read the log. |
+| `Create returned null -- check log for details.` and `Schedule creation returned null.` | Log | The site refused the window or the schedule. | Review the log lines before this message. |
+| `The window was not updated -- check the log for details. The dialog stays open.` | Dialog | The site refused the change. | Review the log. Correct the values. |
+| `Rename aborted: failed to remove the old window.` | Log | The delete of the old window failed. The old window stays. | Review the log. |
 | `Rename failed: old window deleted but new one did not create. Check log.` | Log | The new window was refused after the delete. | Create the window again. |
 | `Apply Template: pick at least one target collection.` | Log | The target list is empty. | Add a target. |
 | `Apply Template: no templates loaded. Reload templates first.` | Log | No template file loaded. | Check the `Templates` folder and select **Reload Templates**. |

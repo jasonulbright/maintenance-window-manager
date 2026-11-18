@@ -17,7 +17,7 @@ Use it to find collections that have no maintenance window, and to fix many of t
 
 ## Steps
 
-### Read the coverage
+### View the coverage
 
 1. Select **Coverage** in the sidebar. The view is empty before the first refresh.
 
