@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Use ConfigMgr terms in the README, the guide headings and the help text, and in the error message for a missing Configuration Manager console.
+- Use select in the steps of the README and in the start message of the log pane.
+
 ## [2026.11.18.0025] - 2026-11-18
 
 ## 11 changes: window reads with retry and notes, Cancel, 1080p layout

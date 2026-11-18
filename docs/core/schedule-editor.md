@@ -38,7 +38,7 @@ The settings that do not belong to the recurrence are hidden.
 2. Type the **Duration Hours** and the **Duration Minutes**.
 3. Select **UTC Time** if the times are UTC.
 
-### Read the preview
+### Review the preview
 
 The **Next 5 Occurrences** box shows the dates and times, for example `2026-11-10  Tue  02:00`. It skips every date at or before the current time. If today is 10 November, the start date is 20 November and the day of the month is 5, the first line is 5 December. For a weekly schedule, the first line is the first selected weekday on or after the start date. For a monthly schedule, it is the first selected day that is on or after the start date and in the future.
 

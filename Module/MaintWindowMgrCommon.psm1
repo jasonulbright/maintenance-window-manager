@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     Import this module to get:
-      - Structured logging and CM site connection management via the
+      - Structured logging and ConfigMgr site connection management by using the
         vendored SuiteCommon module (Lib\SuiteCommon)
       - Maintenance window data retrieval and CRUD operations
       - Schedule creation helpers (including Patch Tuesday)
@@ -111,8 +111,8 @@ function Get-AllMaintenanceWindows {
     .SYNOPSIS
         Retrieves all maintenance windows across all device collections.
     .DESCRIPTION
-        Iterates all device collections via Get-CMDeviceCollection and queries
-        each for maintenance windows via Get-CMMaintenanceWindow. Returns flat
+        Iterates all device collections by using Get-CMDeviceCollection and queries
+        each for maintenance windows by using Get-CMMaintenanceWindow. Returns flat
         PSCustomObject array.
 
         State (optional) is the shared state of the background load: a collection whose windows cannot be read
@@ -122,7 +122,7 @@ function Get-AllMaintenanceWindows {
     [CmdletBinding()]
     param([System.Collections.IDictionary]$State)
 
-    Write-Log "Querying all maintenance windows via CM cmdlets..."
+    Write-Log "Querying all maintenance windows by using ConfigMgr cmdlets..."
     # Assigned in a statement, not from an if expression: an empty list would unroll to $null.
     $notes = New-Object System.Collections.ArrayList
     if ($State -and $null -ne $State['Notes']) { $notes = $State['Notes'] }
@@ -768,7 +768,7 @@ function Save-WindowTemplate {
     .DESCRIPTION
         The file name comes from the template name. Saving a template with the
         same name replaces its file. A different name that gives the same file
-        name (for example 'Patch + 7' and 'Patch - 7') gets a numbered file
+        name (for example 'Night + 7' and 'Night - 7') gets a numbered file
         name instead of replacing the other template. A name that Windows
         reserves for a device (CON, NUL, COM1 and so on) gets a leading
         underscore. Returns $null under -WhatIf.

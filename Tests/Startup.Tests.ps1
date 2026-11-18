@@ -19,7 +19,7 @@ Describe 'Connect-CMSite without the ConfigMgr module' {
         Connect-CMSite -SiteCode 'MCM' -SMSProvider 'cm01.contoso.com' | Should -BeFalse
         $script:logged.Count | Should -Be 1
         $script:logged[0].Level | Should -Be 'ERROR'
-        $script:logged[0].Message | Should -Be 'ConfigurationManager module not found. Ensure the CM console is installed.'
+        $script:logged[0].Message | Should -Be 'ConfigurationManager module not found. Make sure that the Configuration Manager console is installed.'
     }
 
     It 'returns false when the given module path does not exist' {

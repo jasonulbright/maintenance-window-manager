@@ -17,7 +17,7 @@ Use it to read the maintenance windows of the site and to change them.
 
 ## Steps
 
-### Read the windows
+### View the windows
 
 1. Select **Windows** in the sidebar and select **Refresh**.
 2. Select a row. The **Properties** tab shows the window.
@@ -91,7 +91,7 @@ This guide opened the New and Edit dialogs and selected **Cancel**. It did not c
 |---|---|---|
 | `Validation: target collection required.` | No collection is selected. | Select **Browse...** and pick a collection. |
 | `Validation: window name required.` | The name is empty. | Type a name. |
-| `Rename aborted: failed to remove the old window.` | The site refused the delete. | Read the log. The old window stays. |
+| `Rename aborted: failed to remove the old window.` | The site refused the delete. | Review the log. The old window stays. |
 | `Rename failed: old window deleted but new one did not create. Check log.` | The new window was refused. | Create the window again with the schedule. |
 
 ## Links
