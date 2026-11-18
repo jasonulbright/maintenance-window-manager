@@ -105,14 +105,24 @@ function Dump-Tree($Scope, [string]$Name) {
     }
     $out | Set-Content (Join-Path $OutDir ($Name + '.tree.txt'))
 }
+# The capture stops only the processes that it started, by process id (vault: testing-policy, "Process rules on a lab VM").
+# Each run records its processes in a ledger in its own run folder. No process is ever stopped by a command-line pattern.
+$script:RunLedger = Join-Path $PSScriptRoot 'run.pids'
+$script:AppProcs = @{}
+function Register-RunProcess($Process, [string]$Key) {
+    $script:AppProcs[$Key] = $Process
+    ('{0}|{1}' -f $Process.Id, $Process.StartTime.Ticks) | Add-Content -LiteralPath $script:RunLedger
+}
 function Start-App([string]$Script, [string]$Title) {
     [void][NativeUi]::SetCursorPos(1900, 1060)
     $script:proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', ('"' + (Join-Path $appDir $Script) + '"')) -PassThru
+    Register-RunProcess $script:proc $Script
     [void](Find-Top $Title 60); Start-Sleep -Seconds 3; Find-Top $Title 10
 }
 function Stop-App([string]$Script) {
-    $target = Join-Path $appDir $Script
-    Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -like "*$target*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    # Stop only the process that Start-App started for this script, by its process id.
+    $p = $script:AppProcs[$Script]
+    if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
 }
 function Section([string]$Name, [scriptblock]$Body) { Log ('== ' + $Name); try { & $Body } catch { Log ('ERROR in ' + $Name + ': ' + $_.Exception.Message + ' @ ' + $_.InvocationInfo.ScriptLineNumber) } }
 function Find-All([string]$Name) {
