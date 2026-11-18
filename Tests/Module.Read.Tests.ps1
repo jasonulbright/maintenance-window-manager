@@ -127,6 +127,38 @@ Describe 'Get-AllMaintenanceWindows' {
         $global:Fx.Windows.MCM00001[0].Duration = $null
         (@(Get-AllMaintenanceWindows))[0].Duration | Should -Be '0h 0m'
     }
+
+    It 'gives a note for a collection that fails for good and still lists the windows of the others' {
+        $w = $global:Fx.Windows.MCM00001[0]
+        $global:Fx.Collections = @([PSCustomObject]@{ CollectionID = 'MCM00001'; Name = 'A' }, [PSCustomObject]@{ CollectionID = 'MCM00002'; Name = 'B' })
+        $global:Fx.Windows.MCM00002 = @($w)
+        Mock Get-CMMaintenanceWindow { if ($CollectionId -eq 'MCM00001') { throw 'Invalid query' }; $global:Fx.Windows[$CollectionId] } -ModuleName MaintWindowMgrCommon
+        $state = [hashtable]::Synchronized(@{ Notes = (New-Object System.Collections.ArrayList); Step = ''; Cancel = $false })
+        $r = @(Get-AllMaintenanceWindows -State $state)
+        $r.Count | Should -Be 1
+        $r[0].CollectionID | Should -Be 'MCM00002'
+        $state['Notes'].Count | Should -Be 2
+        $state['Notes'][0] | Should -Match 'Maintenance windows of A \(MCM00001\) failed after 1 attempt'
+        $state['Notes'][1] | Should -Match '1 of 2 collections could not be read'
+    }
+
+    It 'retries a transient fault of one collection and gives no note' {
+        $global:Fx.Hit = 0
+        Mock Get-CMMaintenanceWindow { $global:Fx.Hit++; if ($global:Fx.Hit -eq 1) { throw 'The operation has timed out.' }; $global:Fx.Windows[$CollectionId] } -ModuleName MaintWindowMgrCommon
+        $state = [hashtable]::Synchronized(@{ Notes = (New-Object System.Collections.ArrayList); Step = ''; Cancel = $false })
+        @(Get-AllMaintenanceWindows -State $state).Count | Should -Be 1
+        $state['Notes'].Count | Should -Be 0
+        $global:Fx.Hit | Should -Be 2
+    }
+
+    It 'shows the progress per collection and stops when the cancel flag is set' {
+        $global:Fx.Collections = @(1..3 | ForEach-Object { [PSCustomObject]@{ CollectionID = "MCM0000$_"; Name = "C$_" } })
+        $state = [hashtable]::Synchronized(@{ Notes = (New-Object System.Collections.ArrayList); Step = ''; Cancel = $false })
+        $global:Fx.State = $state
+        Mock Get-CMMaintenanceWindow { if ($CollectionId -eq 'MCM00002') { $global:Fx.State['Cancel'] = $true }; $null } -ModuleName MaintWindowMgrCommon
+        { Get-AllMaintenanceWindows -State $state } | Should -Throw '*cancelled*'
+        $state['Step'] | Should -Be 'Loading maintenance windows: collection 3 of 3' -Because 'the flag is read at the start of the next collection'
+    }
 }
 
 Describe 'Get-CollectionMaintenanceWindows' {
