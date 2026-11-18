@@ -498,7 +498,7 @@
                 <!-- Progress overlay -->
                 <Border x:Name="progressOverlay"
                         Visibility="Collapsed"
-                        IsHitTestVisible="False"
+                        IsHitTestVisible="True"
                         Background="{DynamicResource MahApps.Brushes.ThemeBackground}"
                         Opacity="0.92">
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -515,6 +515,8 @@
                                    HorizontalAlignment="Center"
                                    Margin="0,6,0,0"
                                    Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
+                        <Button x:Name="btnCancelWork" Content="Cancel" Style="{StaticResource ThemedButtonStyle}"
+                                Width="100" Height="26" Margin="0,14,0,0" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
