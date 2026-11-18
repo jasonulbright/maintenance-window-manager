@@ -615,6 +615,7 @@ function Invoke-Refresh {
         Result   = $null
         ErrorMsg = $null
         ErrorDetail = $null
+        Notes    = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
     })
 
     $btnRefresh.IsEnabled = $false
@@ -663,7 +664,7 @@ function Invoke-Refresh {
             })
 
             $State.Step = 'Loading maintenance windows across all collections...'
-            $windows = @(Get-AllMaintenanceWindows)
+            $windows = @(Get-AllMaintenanceWindows -State $State)
 
             $State.Result = [PSCustomObject]@{
                 Collections = $collections
@@ -707,6 +708,7 @@ function Invoke-Refresh {
             }
 
             $script:IsConnectedFromBg = $true
+            foreach ($note in @($script:BgState.Notes)) { Add-LogLine ('Refresh: {0}' -f $note) }
             $r = $script:BgState.Result
             $script:Collections = @($r.Collections)
             $script:RawWindows  = @($r.Windows)

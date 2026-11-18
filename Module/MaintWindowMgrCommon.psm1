@@ -114,8 +114,18 @@ function Get-AllMaintenanceWindows {
         Iterates all device collections via Get-CMDeviceCollection and queries
         each for maintenance windows via Get-CMMaintenanceWindow. Returns flat
         PSCustomObject array.
+
+        State (optional) is the shared state of the background load: a collection whose windows cannot be read
+        (after the retry of transient faults) adds one note to State.Notes, and State.Step shows the progress. The
+        other collections still load. No failure turns into an empty result.
     #>
+    [CmdletBinding()]
+    param([System.Collections.IDictionary]$State)
+
     Write-Log "Querying all maintenance windows via CM cmdlets..."
+    # Assigned in a statement, not from an if expression: an empty list would unroll to $null.
+    $notes = New-Object System.Collections.ArrayList
+    if ($State -and $null -ne $State['Notes']) { $notes = $State['Notes'] }
 
     # Get all device collections
     $allCollections = @(Get-CMDeviceCollection -ErrorAction Stop)
@@ -123,17 +133,22 @@ function Get-AllMaintenanceWindows {
 
     $results = [System.Collections.ArrayList]::new()
 
+    $position = 0
+    $failed = 0
     foreach ($coll in $allCollections) {
         $collId = $coll.CollectionID
         $collName = $coll.Name
+        $position++
+        if ($State) {
+            $State['Step'] = 'Loading maintenance windows: collection {0} of {1}' -f $position, $allCollections.Count
+            if ($State['Cancel']) { throw (New-Object System.OperationCanceledException('The load of the maintenance windows was cancelled.')) }
+        }
 
-        try {
-            $windows = Get-CMMaintenanceWindow -CollectionId $collId -ErrorAction SilentlyContinue
+        $before = $notes.Count
+        $windows = Invoke-SuiteCMRead -Description "Maintenance windows of $collName ($collId)" -Notes $notes -ScriptBlock {
+            Get-CMMaintenanceWindow -CollectionId $collId -ErrorAction Stop
         }
-        catch {
-            Write-Log "Failed to get windows for $collId : $_" -Level WARN
-            continue
-        }
+        if ($notes.Count -gt $before) { $failed++; continue }
 
         if (-not $windows) { continue }
 
@@ -184,6 +199,7 @@ function Get-AllMaintenanceWindows {
         }
     }
 
+    if ($failed -gt 0) { [void]$notes.Add(('The maintenance windows of {0} of {1} collections could not be read. The list is not complete.' -f $failed, $allCollections.Count)) }
     Write-Log "Found $($results.Count) maintenance windows across all collections"
     return $results
 }
