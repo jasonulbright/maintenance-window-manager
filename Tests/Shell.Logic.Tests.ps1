@@ -138,7 +138,7 @@ Describe 'Update-StatusBarSummary' {
     It 'says what to do when <Case>' -ForEach @(
         @{ Case = 'the site code is missing'; Site = ''; Provider = 'cm01'; Expected = 'Open Options to configure site code and SMS Provider' }
         @{ Case = 'the provider is missing'; Site = 'MCM'; Provider = ''; Expected = 'Open Options to configure site code and SMS Provider' }
-        @{ Case = 'both are set'; Site = 'MCM'; Provider = 'cm01'; Expected = 'Ready. Click Refresh.' }
+        @{ Case = 'both are set'; Site = 'MCM'; Provider = 'cm01'; Expected = 'Ready. Select Refresh.' }
     ) {
         $global:Prefs = @{ SiteCode = $Site; SMSProvider = $Provider }
         Update-StatusBarSummary

@@ -17,7 +17,7 @@ Use it to keep tested schedules in one place and to apply them to one or many co
 
 ## Steps
 
-### Read a template
+### View a template
 
 1. Select **Templates** in the sidebar.
 
