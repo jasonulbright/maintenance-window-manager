@@ -20,6 +20,7 @@
 ### Added
 
 - Add the capture lock test, and drop the stale inactive title bar note from the test plan.
+- Add a Cancel button to the progress overlay of the load: it stops the running read without blocking the window, drops the background runspace and leaves the data of the last load as it was.
 
 ## [2026.11.15.0024] - 2026-11-15
 

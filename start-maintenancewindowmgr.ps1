@@ -185,6 +185,7 @@ $btnDeleteTemplate  = $window.FindName('btnDeleteTemplate')
 $btnApplyTemplateOne = $window.FindName('btnApplyTemplateOne')
 
 $progressOverlay  = $window.FindName('progressOverlay')
+$btnCancelWork     = $window.FindName('btnCancelWork')
 $txtProgressTitle = $window.FindName('txtProgressTitle')
 $txtProgressStep  = $window.FindName('txtProgressStep')
 
@@ -240,7 +241,7 @@ $script:ViewButtons = @(
 $script:ActiveView = 'Windows'
 
 # Every button that is not a sidebar button takes the shared button theme (SuiteCommon Set-ButtonTheme).
-$script:WorkflowButtons = @($btnRefresh, $btnExportCsv, $btnExportHtml, $btnNewWindow, $btnEditWindow, $btnToggleEnabled, $btnRemoveWindow,
+$script:WorkflowButtons = @($btnRefresh, $btnCancelWork, $btnExportCsv, $btnExportHtml, $btnNewWindow, $btnEditWindow, $btnToggleEnabled, $btnRemoveWindow,
     $btnApplyTemplateBulk, $btnNewTemplate, $btnEditTemplate, $btnDeleteTemplate, $btnApplyTemplateOne)
 
 Initialize-SuiteTheme -Window $window `
@@ -590,6 +591,25 @@ function Dispose-BgWork {
     $script:BgPowerShell   = $null
     $script:BgInvokeHandle = $null
 }
+
+# Cancel stops the running load. The cancel flag lets a worker that reads it stop at its next step; the pipeline is stopped
+# without blocking the window, and the background runspace is dropped, so that the next load never queues behind a call
+# that is stuck on an unresponsive provider.
+function Invoke-CancelWork {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Stops ephemeral background work only.')]
+    param()
+    if (-not $script:BgPowerShell) { return }
+    if ($script:BgState) { $script:BgState['Cancel'] = $true }
+    Dispose-BgWork
+    Close-SuiteBgRunspace -Runspace $script:BgRunspace
+    $script:BgRunspace = $null
+    $script:BgState = $null
+    $script:IsConnectedFromBg = $false
+    $progressOverlay.Visibility = [System.Windows.Visibility]::Collapsed
+    $btnRefresh.IsEnabled = $true
+    Add-LogLine 'Cancelled. Nothing was changed.'
+    Set-StatusText 'Cancelled.'
+}$btnCancelWork.Add_Click({ Invoke-CancelWork })
 
 function Invoke-Refresh {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Posts work to the background runspace and arms a DispatcherTimer.')]
