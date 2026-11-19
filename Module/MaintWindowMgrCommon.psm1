@@ -111,9 +111,11 @@ function Get-AllMaintenanceWindows {
     .SYNOPSIS
         Retrieves all maintenance windows across all device collections.
     .DESCRIPTION
-        Iterates all device collections by using Get-CMDeviceCollection and queries
-        each for maintenance windows by using Get-CMMaintenanceWindow. Returns flat
-        PSCustomObject array.
+        Lists the device collections with one SELECT, lists the collections that have a settings
+        object with a second SELECT (only those can hold a maintenance window), and reads the windows
+        of those collections by using Get-CMMaintenanceWindow. Returns flat PSCustomObject array.
+        Get-CMDeviceCollection and a window read for every collection are not used: each makes one
+        provider round trip per collection, which took minutes at 2,000 collections.
 
         State (optional) is the shared state of the background load: a collection whose windows cannot be read
         (after the retry of transient faults) adds one note to State.Notes, and State.Step shows the progress. The
@@ -127,9 +129,14 @@ function Get-AllMaintenanceWindows {
     $notes = New-Object System.Collections.ArrayList
     if ($State -and $null -ne $State['Notes']) { $notes = $State['Notes'] }
 
-    # Get all device collections
-    $allCollections = @(Get-CMDeviceCollection -ErrorAction Stop)
-    Write-Log "Checking $($allCollections.Count) device collections for maintenance windows..."
+    # One SELECT of plain columns lists the collections. A collection can hold a maintenance window only if it has a
+    # settings object; one more SELECT lists those, and the windows are read for them only.
+    $allCollections = @(Invoke-CMWmiQuery -Query 'SELECT CollectionID, Name FROM SMS_Collection WHERE CollectionType = 2' -Option Fast -ErrorAction Stop)
+    $settingIds = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($settingRow in @(Invoke-CMWmiQuery -Query 'SELECT CollectionID FROM SMS_CollectionSettings' -Option Fast -ErrorAction Stop)) { [void]$settingIds.Add([string]$settingRow.CollectionID) }
+    $total = $allCollections.Count
+    $allCollections = @($allCollections | Where-Object { $settingIds.Contains([string]$_.CollectionID) })
+    Write-Log "Checking $($allCollections.Count) of $total device collections that have settings for maintenance windows..."
 
     $results = [System.Collections.ArrayList]::new()
 
@@ -231,7 +238,8 @@ function Get-DeviceCollectionSummary {
     #>
     Write-Log "Querying device collection summary..."
 
-    $collections = Get-CMDeviceCollection -ErrorAction Stop
+    # One SELECT of plain columns (Get-CMDeviceCollection makes one provider round trip for each collection).
+    $collections = @(Invoke-CMWmiQuery -Query 'SELECT CollectionID, Name, MemberCount FROM SMS_Collection WHERE CollectionType = 2' -Option Fast -ErrorAction Stop)
 
     $results = foreach ($c in $collections) {
         [PSCustomObject]@{

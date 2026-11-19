@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Loading the maintenance windows and the collection list no longer takes minutes at a large site. Two queries replace one provider call for each collection, and the windows are read only for the collections that have settings.
+
 ### Changed
 
 - Use ConfigMgr terms in the README, the guide headings and the help text, and in the error message for a missing Configuration Manager console.
