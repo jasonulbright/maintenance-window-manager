@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- The image of the window after a restart shows the status text "Ready. Select Refresh.", the text that the tool shows now.
 - The guide capture tool stops only the processes that it started, by process id. It no longer stops PowerShell processes by command-line pattern, which could end the window of another session. A new guard test fails when a tool script stops a process by a pattern.
 
 ## [2026.11.18.0025] - 2026-11-18
