@@ -6,7 +6,7 @@
 BeforeAll {
     . "$PSScriptRoot\TestHelpers.ps1"
     Import-AppModule
-    $script:Stubs = New-CmStub -Name Get-CMDeviceCollection, Get-CMMaintenanceWindow
+    $script:Stubs = New-CmStub -Name Get-CMDeviceCollection, Invoke-CMWmiQuery, Get-CMMaintenanceWindow
     Mock Write-Log {} -ModuleName MaintWindowMgrCommon
 }
 
@@ -50,7 +50,7 @@ Describe 'Get-AllMaintenanceWindows' {
             Collections = @([PSCustomObject]@{ CollectionID = 'MCM00001'; Name = 'Servers' })
             Windows     = @{ MCM00001 = @([PSCustomObject]@{ Name = 'Sunday night'; ServiceWindowID = 'W1'; ServiceWindowType = 4; RecurrenceType = 3; StartTime = [datetime]'2026-01-04T02:00:00'; Duration = 270; IsEnabled = $true; IsGMT = $false; Description = 'd' }) }
         }
-        Mock Get-CMDeviceCollection { $global:Fx.Collections } -ModuleName MaintWindowMgrCommon
+        Mock Invoke-CMWmiQuery { if ($Query -like '*SMS_CollectionSettings*') { if ($null -ne $global:Fx.Settings) { $global:Fx.Settings } else { $global:Fx.Collections | ForEach-Object { [PSCustomObject]@{ CollectionID = $_.CollectionID } } } } else { $global:Fx.Collections } } -ModuleName MaintWindowMgrCommon
         Mock Get-CMMaintenanceWindow { $global:Fx.Windows[$CollectionId] } -ModuleName MaintWindowMgrCommon
     }
 
@@ -112,14 +112,18 @@ Describe 'Get-AllMaintenanceWindows' {
         @(Get-AllMaintenanceWindows).Count | Should -Be 3
     }
 
-    It 'reads 500 collections' {
-        $global:Fx.Collections = @(1..500 | ForEach-Object { [PSCustomObject]@{ CollectionID = "MCM$_"; Name = "C$_" } })
+    It 'reads the windows only of the collections that have settings, however many collections the site has (<Count>)' -ForEach @(@{ Count = 2000 }, @{ Count = 20000 }) {
+        Mock Get-CMDeviceCollection { throw 'the per-collection cmdlet must not be used' } -ModuleName MaintWindowMgrCommon
+        $global:Fx.Collections = @(1..$Count | ForEach-Object { [PSCustomObject]@{ CollectionID = "MCM$_"; Name = "C$_" } })
+        $global:Fx.Settings = @(1..40 | ForEach-Object { [PSCustomObject]@{ CollectionID = "MCM$_" } })
         @(Get-AllMaintenanceWindows).Count | Should -Be 0
-        Should -Invoke Get-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 500 -Exactly
+        Should -Invoke Invoke-CMWmiQuery -ModuleName MaintWindowMgrCommon -Times 2 -Exactly
+        Should -Invoke Get-CMMaintenanceWindow -ModuleName MaintWindowMgrCommon -Times 40 -Exactly
+        Should -Invoke Get-CMDeviceCollection -ModuleName MaintWindowMgrCommon -Times 0 -Exactly
     }
 
     It 'lets a collection query failure reach the caller' {
-        Mock Get-CMDeviceCollection { throw 'not connected' } -ModuleName MaintWindowMgrCommon
+        Mock Invoke-CMWmiQuery { throw 'not connected' } -ModuleName MaintWindowMgrCommon
         { Get-AllMaintenanceWindows } | Should -Throw '*not connected*'
     }
 
@@ -177,7 +181,7 @@ Describe 'Get-CollectionMaintenanceWindows' {
 
 Describe 'Get-DeviceCollectionSummary' {
     It 'returns id, name, member count and the built-in flag' {
-        Mock Get-CMDeviceCollection {
+        Mock Invoke-CMWmiQuery {
             [PSCustomObject]@{ CollectionID = 'SMS00001'; Name = 'All Systems'; MemberCount = 9 }
             [PSCustomObject]@{ CollectionID = 'MCM00001'; Name = 'Mine'; MemberCount = $null }
         } -ModuleName MaintWindowMgrCommon
@@ -188,8 +192,17 @@ Describe 'Get-DeviceCollectionSummary' {
     }
 
     It 'returns nothing when there are no collections' {
-        Mock Get-CMDeviceCollection { } -ModuleName MaintWindowMgrCommon
+        Mock Invoke-CMWmiQuery { } -ModuleName MaintWindowMgrCommon
         @(Get-DeviceCollectionSummary).Count | Should -Be 0
+    }
+
+    It 'reads the summary of <Count> collections with one SELECT and no per-collection cmdlet' -ForEach @(@{ Count = 2000 }, @{ Count = 20000 }) {
+        Mock Get-CMDeviceCollection { throw 'the per-collection cmdlet must not be used' } -ModuleName MaintWindowMgrCommon
+        $global:Fx = $Count
+        Mock Invoke-CMWmiQuery { 1..$global:Fx | ForEach-Object { [PSCustomObject]@{ CollectionID = "MCM$_"; Name = "C$_"; MemberCount = $_ } } } -ModuleName MaintWindowMgrCommon
+        @(Get-DeviceCollectionSummary).Count | Should -Be $Count
+        Should -Invoke Invoke-CMWmiQuery -ModuleName MaintWindowMgrCommon -Times 1 -Exactly -ParameterFilter { $Option -eq 'Fast' -and $Query -match '^SELECT CollectionID, Name, MemberCount FROM SMS_Collection WHERE CollectionType = 2$' }
+        Should -Invoke Get-CMDeviceCollection -ModuleName MaintWindowMgrCommon -Times 0 -Exactly
     }
 }
 
