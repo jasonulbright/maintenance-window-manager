@@ -515,7 +515,7 @@
                                    HorizontalAlignment="Center"
                                    Margin="0,6,0,0"
                                    Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                        <Button x:Name="btnCancelWork" ToolTip="Stop loading the site data. Nothing is changed." Content="Cancel" Style="{StaticResource ThemedButtonStyle}"
+                        <Button x:Name="btnCancelWork" Content="Cancel" Style="{StaticResource ThemedButtonStyle}" ToolTip="Stop loading the site data. Nothing is changed."
                                 Width="100" Height="26" Margin="0,14,0,0" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
