@@ -307,7 +307,7 @@
                             MinWidth="120"
                             ToolTip="Reload the data from the site or the templates from disk."/>
 
-                    <TextBox x:Name="txtFilter"
+                    <TextBox x:Name="txtFilter" ToolTip="Show only the rows that contain the text you type."
                              Grid.Column="1"
                              FontSize="12"
                              Padding="6,4,6,4"
@@ -515,7 +515,7 @@
                                    HorizontalAlignment="Center"
                                    Margin="0,6,0,0"
                                    Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                        <Button x:Name="btnCancelWork" Content="Cancel" Style="{StaticResource ThemedButtonStyle}"
+                        <Button x:Name="btnCancelWork" Content="Cancel" Style="{StaticResource ThemedButtonStyle}" ToolTip="Stop loading the site data. Nothing is changed."
                                 Width="100" Height="26" Margin="0,14,0,0" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>

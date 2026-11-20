@@ -822,7 +822,7 @@ $script:ScheduleEditorXamlFragment = @'
     </Grid.RowDefinitions>
 
     <TextBlock Grid.Row="0" Text="Recurrence" FontSize="11" FontWeight="Bold" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-    <ComboBox x:Name="cboScheduleRecurrence" Grid.Row="1" FontSize="12">
+    <ComboBox x:Name="cboScheduleRecurrence" ToolTip="Select how often the window repeats. The fields below change with the recurrence." Grid.Row="1" FontSize="12">
         <ComboBoxItem Content="One-time"/>
         <ComboBoxItem Content="Daily"/>
         <ComboBoxItem Content="Weekly" IsSelected="True"/>
@@ -839,15 +839,15 @@ $script:ScheduleEditorXamlFragment = @'
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0">
             <TextBlock Text="Start Date" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <DatePicker x:Name="dpScheduleStartDate" FontSize="12" HorizontalAlignment="Left" Width="180"/>
+            <DatePicker x:Name="dpScheduleStartDate" ToolTip="Select the date on which the window starts." FontSize="12" HorizontalAlignment="Left" Width="180"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Margin="12,0,0,0">
             <TextBlock Text="Hour" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <TextBox x:Name="txtScheduleHour" FontSize="12" Width="60" Padding="6,4,6,4"/>
+            <TextBox x:Name="txtScheduleHour" ToolTip="Enter the start hour, 0 to 23." FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
         <StackPanel Grid.Column="2" Margin="8,0,0,0">
             <TextBlock Text="Minute" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <TextBox x:Name="txtScheduleMinute" FontSize="12" Width="60" Padding="6,4,6,4"/>
+            <TextBox x:Name="txtScheduleMinute" ToolTip="Enter the start minute, 0 to 59." FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
     </Grid>
 
@@ -859,19 +859,19 @@ $script:ScheduleEditorXamlFragment = @'
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0">
             <TextBlock Text="Duration Hours" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <TextBox x:Name="txtDurationHours" FontSize="12" Width="60" Padding="6,4,6,4"/>
+            <TextBox x:Name="txtDurationHours" ToolTip="Enter the hours of the window length. The total length must be under 24 hours." FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Margin="8,0,0,0">
             <TextBlock Text="Duration Minutes" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <TextBox x:Name="txtDurationMinutes" FontSize="12" Width="60" Padding="6,4,6,4"/>
+            <TextBox x:Name="txtDurationMinutes" ToolTip="Enter the minutes of the window length. They are added to the duration hours." FontSize="12" Width="60" Padding="6,4,6,4"/>
         </StackPanel>
-        <CheckBox x:Name="chkScheduleUtc" Grid.Column="2" Content="UTC Time" VerticalAlignment="Bottom" Margin="16,0,0,4" FontSize="12"/>
+        <CheckBox x:Name="chkScheduleUtc" ToolTip="Use UTC for the start time. When cleared, each device uses its own local time." Grid.Column="2" Content="UTC Time" VerticalAlignment="Bottom" Margin="16,0,0,4" FontSize="12"/>
     </Grid>
 
     <StackPanel x:Name="panelDayOfWeek" Grid.Row="4" Orientation="Horizontal" Margin="0,12,0,0" Visibility="Visible">
         <StackPanel>
             <TextBlock Text="Day of Week" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <ComboBox x:Name="cboDayOfWeek" FontSize="12" Width="140">
+            <ComboBox x:Name="cboDayOfWeek" ToolTip="Select the day of the week on which the window starts." FontSize="12" Width="140">
                 <ComboBoxItem Content="Sunday"/>
                 <ComboBoxItem Content="Monday"/>
                 <ComboBoxItem Content="Tuesday" IsSelected="True"/>
@@ -885,7 +885,7 @@ $script:ScheduleEditorXamlFragment = @'
 
     <StackPanel x:Name="panelWeekOrder" Grid.Row="5" Margin="0,12,0,0" Visibility="Collapsed">
         <TextBlock Text="Week Order" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-        <ComboBox x:Name="cboWeekOrder" FontSize="12" Width="140" HorizontalAlignment="Left">
+        <ComboBox x:Name="cboWeekOrder" ToolTip="Select which occurrence of the weekday in the month starts the window, from First to Last." FontSize="12" Width="140" HorizontalAlignment="Left">
             <ComboBoxItem Content="First"/>
             <ComboBoxItem Content="Second" IsSelected="True"/>
             <ComboBoxItem Content="Third"/>
@@ -896,12 +896,12 @@ $script:ScheduleEditorXamlFragment = @'
 
     <StackPanel x:Name="panelMonthlyDate" Grid.Row="6" Margin="0,12,0,0" Visibility="Collapsed">
         <TextBlock Text="Day of Month (1-31)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-        <TextBox x:Name="txtDayOfMonth" FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
+        <TextBox x:Name="txtDayOfMonth" ToolTip="Enter the day of the month on which the window starts, 1 to 31." FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
     </StackPanel>
 
     <StackPanel x:Name="panelPatchTuesday" Grid.Row="7" Margin="0,12,0,0" Visibility="Collapsed">
         <TextBlock Text="Days After Patch Tuesday (0-30)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-        <TextBox x:Name="txtPatchOffset" FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
+        <TextBox x:Name="txtPatchOffset" ToolTip="Enter the number of days after Patch Tuesday on which the window starts, 0 to 30." FontSize="12" Width="60" Padding="6,4,6,4" HorizontalAlignment="Left"/>
     </StackPanel>
 
     <StackPanel Grid.Row="8" Margin="0,16,0,0">
@@ -1228,26 +1228,26 @@ function Show-NewWindowDialog {
                                    Foreground="{DynamicResource MahApps.Brushes.Gray1}"
                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                     </Border>
-                    <Button x:Name="btnPickTargetColl" Grid.Column="1" Content="Browse..."
+                    <Button x:Name="btnPickTargetColl" ToolTip="Select the device collection that gets the maintenance window." Grid.Column="1" Content="Browse..."
                             Style="{StaticResource DialogButton}" MinWidth="90" Margin="0"/>
                 </Grid>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0">
                 <TextBlock Text="Window Name" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <TextBox x:Name="txtWindowName" FontSize="12" Padding="6,4,6,4"/>
+                <TextBox x:Name="txtWindowName" ToolTip="Enter the name of the maintenance window." FontSize="12" Padding="6,4,6,4"/>
             </StackPanel>
 
             <StackPanel Grid.Row="2" Margin="0,12,0,0">
                 <TextBlock Text="Window Type" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <ComboBox x:Name="cboWindowType" FontSize="12" Width="280" HorizontalAlignment="Left">
+                <ComboBox x:Name="cboWindowType" ToolTip="Select what the window applies to: all deployments, software updates only or task sequences only." FontSize="12" Width="280" HorizontalAlignment="Left">
                     <ComboBoxItem Content="Any" IsSelected="True"/>
                     <ComboBoxItem Content="SoftwareUpdatesOnly"/>
                     <ComboBoxItem Content="TaskSequencesOnly"/>
                 </ComboBox>
             </StackPanel>
 
-            <CheckBox x:Name="chkWindowEnabled" Grid.Row="3" Margin="0,12,0,0" Content="Enabled" IsChecked="True" FontSize="12"/>
+            <CheckBox x:Name="chkWindowEnabled" ToolTip="Clear this box to create the window in a disabled state." Grid.Row="3" Margin="0,12,0,0" Content="Enabled" IsChecked="True" FontSize="12"/>
 
             <TextBlock Grid.Row="4" Text="Schedule" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,4"/>
 
@@ -1461,20 +1461,20 @@ function Show-TemplateEditorDialog {
 
             <StackPanel Grid.Row="0">
                 <TextBlock Text="Template Name" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <TextBox x:Name="txtTemplateName" FontSize="12" Padding="6,4,6,4"
+                <TextBox x:Name="txtTemplateName" ToolTip="Enter the name of the schedule template." FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. Patch Tuesday + 7"/>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Margin="0,12,0,0">
                 <TextBlock Text="Description" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <TextBox x:Name="txtTemplateDesc" FontSize="12" Padding="6,4,6,4"
+                <TextBox x:Name="txtTemplateDesc" ToolTip="Enter an optional description of the template." FontSize="12" Padding="6,4,6,4"
                          AcceptsReturn="True" TextWrapping="Wrap" Height="60"
                          VerticalScrollBarVisibility="Auto"/>
             </StackPanel>
 
             <StackPanel Grid.Row="2" Margin="0,12,0,0">
                 <TextBlock Text="Window Type" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <ComboBox x:Name="cboTplWindowType" FontSize="12" Width="280" HorizontalAlignment="Left">
+                <ComboBox x:Name="cboTplWindowType" ToolTip="Select what windows made from this template apply to: all deployments, software updates only or task sequences only." FontSize="12" Width="280" HorizontalAlignment="Left">
                     <ComboBoxItem Content="Any" IsSelected="True"/>
                     <ComboBoxItem Content="SoftwareUpdatesOnly"/>
                     <ComboBoxItem Content="TaskSequencesOnly"/>
@@ -1644,12 +1644,12 @@ function Show-ApplyTemplateDialog {
 
         <StackPanel Grid.Row="0">
             <TextBlock Text="Template" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <ComboBox x:Name="cboApplyTemplate" FontSize="12" DisplayMemberPath="Name"/>
+            <ComboBox x:Name="cboApplyTemplate" ToolTip="Select the schedule template to apply." FontSize="12" DisplayMemberPath="Name"/>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,12,0,0">
             <TextBlock Text="Window Name (Optional)" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-            <TextBox x:Name="txtApplyWindowName" FontSize="12" Padding="6,4,6,4"
+            <TextBox x:Name="txtApplyWindowName" ToolTip="Enter a name for the new windows. When blank, each window gets the template name." FontSize="12" Padding="6,4,6,4"
                      Controls:TextBoxHelper.Watermark="Uses the template name when blank"/>
         </StackPanel>
 
@@ -1657,15 +1657,15 @@ function Show-ApplyTemplateDialog {
         <Border Grid.Row="3" BorderThickness="1"
                 BorderBrush="{DynamicResource MahApps.Brushes.Gray8}"
                 Background="{DynamicResource MahApps.Brushes.ThemeBackground}">
-            <ListBox x:Name="lstApplyTargets" FontSize="12" BorderThickness="0"
+            <ListBox x:Name="lstApplyTargets" ToolTip="The device collections that get a maintenance window from the template." FontSize="12" BorderThickness="0"
                      Background="{DynamicResource MahApps.Brushes.ThemeBackground}"
                      Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"
                      SelectionMode="Extended"/>
         </Border>
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,8,0,0">
-            <Button x:Name="btnAddTarget"    Content="Add Target..."   Style="{StaticResource DialogButton}" MinWidth="130"/>
-            <Button x:Name="btnRemoveTarget" Content="Remove Selected" Style="{StaticResource DialogButton}" MinWidth="140"/>
+            <Button x:Name="btnAddTarget" ToolTip="Select a device collection to add to the targets."    Content="Add Target..."   Style="{StaticResource DialogButton}" MinWidth="130"/>
+            <Button x:Name="btnRemoveTarget" ToolTip="Remove the selected device collections from the targets." Content="Remove Selected" Style="{StaticResource DialogButton}" MinWidth="140"/>
             <TextBlock x:Name="txtTargetCount" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
                        Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
         </StackPanel>
@@ -1918,8 +1918,8 @@ function Show-OptionsDialog {
         </Grid.RowDefinitions>
         <Border Grid.Column="0" Grid.Row="0" Padding="6,12,0,12">
             <StackPanel>
-                <Button x:Name="btnCatConnection" Content="Connection" Style="{StaticResource CategoryRowStyle}"/>
-                <Button x:Name="btnCatAbout"      Content="About"      Style="{StaticResource CategoryRowStyle}"/>
+                <Button x:Name="btnCatConnection" ToolTip="Show the site code and SMS Provider settings." Content="Connection" Style="{StaticResource CategoryRowStyle}"/>
+                <Button x:Name="btnCatAbout" ToolTip="Show the version and license of the app."      Content="About"      Style="{StaticResource CategoryRowStyle}"/>
             </StackPanel>
         </Border>
         <Border Grid.Column="1" Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray8}"/>
@@ -1927,10 +1927,10 @@ function Show-OptionsDialog {
             <StackPanel x:Name="paneConnection" Visibility="Visible">
                 <TextBlock Text="Configuration Manager Connection" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,10"/>
                 <TextBlock Text="Site Code" FontSize="14" FontWeight="Bold" Margin="0,4,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <TextBox x:Name="txtSiteCode" FontSize="12" Padding="6,4,6,4"
+                <TextBox x:Name="txtSiteCode" ToolTip="Enter the three-character site code of the ConfigMgr site." FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. MCM" Width="120" HorizontalAlignment="Left"/>
                 <TextBlock Text="SMS Provider" FontSize="14" FontWeight="Bold" Margin="0,12,0,2" Foreground="{DynamicResource MahApps.Brushes.Gray1}"/>
-                <TextBox x:Name="txtSmsProvider" FontSize="12" Padding="6,4,6,4"
+                <TextBox x:Name="txtSmsProvider" ToolTip="Enter the name of the computer that runs the SMS Provider." FontSize="12" Padding="6,4,6,4"
                          Controls:TextBoxHelper.Watermark="e.g. cm01.contoso.com"/>
                 <TextBlock Text="The app uses these values to connect to the site. The account that runs the app needs ConfigMgr permissions to read and to change maintenance windows."
                            FontSize="11" TextWrapping="Wrap" Margin="0,16,0,0"
