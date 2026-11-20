@@ -2,20 +2,21 @@
 
 ## [Unreleased]
 
-### Fixed
+## [2026.11.20.0026] - 2026-11-20
 
-- Loading the maintenance windows and the collection list no longer takes minutes at a large site. Two queries replace one provider call for each collection, and the windows are read only for the collections that have settings.
+## 6 changes: two-query window load, ConfigMgr wording, tooltips, safer capture tool
 
 ### Changed
 
-- Use ConfigMgr terms in the README, the guide headings and the help text, and in the error message for a missing Configuration Manager console.
-- Use select in the steps of the README and in the start message of the log pane.
-- Added tooltips to 29 controls that had none: the filter box, the Cancel button of the progress overlay, the schedule editor fields, the fields and buttons of the window, template and apply dialogs, and the navigation and fields of the Options dialog.
+- Use ConfigMgr terms in the README, guide headings, help text and console error message.
+- Use select in the README steps and the log pane start message.
+- Add tooltips to buttons and fields.
 
 ### Fixed
 
-- The image of the window after a restart shows the status text "Ready. Select Refresh.", the text that the tool shows now.
-- The guide capture tool stops only the processes that it started, by process id. It no longer stops PowerShell processes by command-line pattern, which could end the window of another session. A new guard test fails when a tool script stops a process by a pattern.
+- Load the maintenance windows and collections with two queries, not one call per collection.
+- Show the current status text in the guide image of the window after a restart.
+- Stop only the processes the capture tool started, not other PowerShell windows.
 
 ## [2026.11.18.0025] - 2026-11-18
 
