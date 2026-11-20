@@ -10,6 +10,7 @@
 
 - Use ConfigMgr terms in the README, the guide headings and the help text, and in the error message for a missing Configuration Manager console.
 - Use select in the steps of the README and in the start message of the log pane.
+- Added tooltips to 29 controls that had none: the filter box, the Cancel button of the progress overlay, the schedule editor fields, the fields and buttons of the window, template and apply dialogs, and the navigation and fields of the Options dialog.
 
 ### Fixed
 
