@@ -4,12 +4,13 @@
 
 ## [2026.11.20.0026] - 2026-11-20
 
-## 5 changes: two-query window load, ConfigMgr wording, safer capture tool
+## 6 changes: two-query window load, ConfigMgr wording, tooltips, safer capture tool
 
 ### Changed
 
 - Use ConfigMgr terms in the README, guide headings, help text and console error message.
 - Use select in the README steps and the log pane start message.
+- Add tooltips to buttons and fields.
 
 ### Fixed
 
