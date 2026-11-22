@@ -370,6 +370,47 @@ function Get-CoverageGlyph {
 }
 
 # =============================================================================
+# Grid rows. The grids bind to these properties (MainWindow.xaml); Grid.Rows.Tests.ps1 checks both sides.
+# =============================================================================
+function ConvertTo-WindowGridRows {
+    param([AllowNull()][AllowEmptyCollection()]$Windows)
+    @(@($Windows) | Where-Object { $_ } | ForEach-Object {
+        $_ | Add-Member -MemberType NoteProperty -Name StatusGlyph -Value (Get-WindowStatusGlyph -Window $_) -Force -PassThru |
+             Add-Member -MemberType NoteProperty -Name Raw         -Value $_                                 -Force -PassThru
+    })
+}
+
+function ConvertTo-CoverageGridRows {
+    param([AllowNull()][AllowEmptyCollection()]$Collections, [AllowNull()][AllowEmptyCollection()]$Windows)
+    $windowCountByColl = @{}
+    foreach ($w in @($Windows)) {
+        $collId = [string]$w.CollectionID
+        if (-not $windowCountByColl.ContainsKey($collId)) { $windowCountByColl[$collId] = 0 }
+        $windowCountByColl[$collId] += 1
+    }
+    @(@($Collections) | Where-Object { $_ } | ForEach-Object {
+        $collId = [string]$_.CollectionID
+        $cnt    = if ($windowCountByColl.ContainsKey($collId)) { [int]$windowCountByColl[$collId] } else { 0 }
+        [PSCustomObject]@{
+            CoverageGlyph = Get-CoverageGlyph -Row @{ WindowCount = $cnt }
+            Name          = $_.Name
+            CollectionID  = $_.CollectionID
+            MemberCount   = $_.MemberCount
+            WindowCount   = $cnt
+            IsBuiltIn     = $_.IsBuiltIn
+        }
+    })
+}
+
+function ConvertTo-TemplateGridRows {
+    param([AllowNull()][AllowEmptyCollection()]$Templates)
+    @(@($Templates) | Where-Object { $_ } | ForEach-Object {
+        $durDisplay = '{0}h {1}m' -f [int]$_.DurationHours, [int]$_.DurationMinutes
+        $_ | Add-Member -MemberType NoteProperty -Name DurationDisplay -Value $durDisplay -Force -PassThru
+    })
+}
+
+# =============================================================================
 # Action bar visibility + status bar summary.
 # =============================================================================
 function Update-ActionBarVisibility {
@@ -735,29 +776,8 @@ function Invoke-Refresh {
             $script:Folders     = @($r.Folders)
             $script:LastRefreshTime = Get-Date
 
-            $script:AllWindows = @($script:RawWindows | ForEach-Object {
-                $_ | Add-Member -MemberType NoteProperty -Name StatusGlyph -Value (Get-WindowStatusGlyph -Window $_) -Force -PassThru |
-                     Add-Member -MemberType NoteProperty -Name Raw         -Value $_                                 -Force -PassThru
-            })
-
-            $windowCountByColl = @{}
-            foreach ($w in $script:RawWindows) {
-                $collId = [string]$w.CollectionID
-                if (-not $windowCountByColl.ContainsKey($collId)) { $windowCountByColl[$collId] = 0 }
-                $windowCountByColl[$collId] += 1
-            }
-            $script:CoverageRows = @($script:Collections | ForEach-Object {
-                $collId = [string]$_.CollectionID
-                $cnt    = if ($windowCountByColl.ContainsKey($collId)) { [int]$windowCountByColl[$collId] } else { 0 }
-                [PSCustomObject]@{
-                    CoverageGlyph = Get-CoverageGlyph -Row @{ WindowCount = $cnt }
-                    Name          = $_.Name
-                    CollectionID  = $_.CollectionID
-                    MemberCount   = $_.MemberCount
-                    WindowCount   = $cnt
-                    IsBuiltIn     = $_.IsBuiltIn
-                }
-            })
+            $script:AllWindows = @(ConvertTo-WindowGridRows -Windows $script:RawWindows)
+            $script:CoverageRows = @(ConvertTo-CoverageGridRows -Collections $script:Collections -Windows $script:RawWindows)
 
             $gridWindows.ItemsSource  = $script:AllWindows
             $gridCoverage.ItemsSource = $script:CoverageRows
@@ -786,10 +806,7 @@ function Invoke-LoadTemplates {
     try {
         $tplPath = Join-Path $PSScriptRoot 'Templates'
         $raw = @(Get-WindowTemplates -TemplatesPath $tplPath)
-        $script:Templates = @($raw | ForEach-Object {
-            $durDisplay = '{0}h {1}m' -f [int]$_.DurationHours, [int]$_.DurationMinutes
-            $_ | Add-Member -MemberType NoteProperty -Name DurationDisplay -Value $durDisplay -Force -PassThru
-        })
+        $script:Templates = @(ConvertTo-TemplateGridRows -Templates $raw)
         $gridTemplates.ItemsSource = $script:Templates
         Add-LogLine ('Loaded {0} templates.' -f @($script:Templates).Count)
         Update-StatusBarSummary
