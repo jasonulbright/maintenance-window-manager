@@ -102,7 +102,9 @@ Describe 'Per-site data of Maintenance Window Manager' {
         Save-MwmPreferences -Prefs $global:Prefs
 
         # Back to AB1. A report that the first start copied is deleted first: a later start must not copy it again.
-        Remove-Item -LiteralPath (Join-Path $script:DataRoot 'sites\AB1\tools\maintenance-window-manager\reports\MWM-Windows-20261120-100000.html') -Force
+        $script:DeletedCopy = Join-Path $script:DataRoot 'sites\AB1\tools\maintenance-window-manager\reports\MWM-Windows-20261120-100000.html'
+        $script:HtmlCopied = Test-Path -LiteralPath $script:DeletedCopy
+        Remove-Item -LiteralPath $script:DeletedCopy -Force
         $script:Ab1Again = Start-Tool -Folder 'AB1'
     }
 
@@ -128,7 +130,7 @@ Describe 'Per-site data of Maintenance Window Manager' {
         $script:Ab1.Site.ToolFolder | Should -Be $tool
         $script:Ab1.Reports | Should -Be (Join-Path $tool 'reports')
         (Get-Content -LiteralPath (Join-Path $tool 'reports\MWM-Windows-20261120-100000.csv') -Raw) | Should -Match 'AB1 windows'
-        Test-Path -LiteralPath (Join-Path $tool 'reports\MWM-Windows-20261120-100000.html') | Should -BeTrue
+        $script:HtmlCopied | Should -BeTrue
         (Get-Content -LiteralPath (Join-Path $tool 'migrated.json') -Raw | ConvertFrom-Json).tool | Should -Be 'maintenance-window-manager'
     }
 
@@ -158,7 +160,7 @@ Describe 'Per-site data of Maintenance Window Manager' {
         Test-Path -LiteralPath (Join-Path $cd2Root 'tools\maintenance-window-manager\reports\MWM-Windows-20261121-100000.csv') | Should -BeTrue
         $ab1Now = Get-TreeHash -Root (Join-Path $script:DataRoot 'sites\AB1')
         foreach ($k in $script:Ab1After.Keys) {
-            if ($k -like '*prefs.json') { continue }
+            if ($k -like '*prefs.json' -or $k -eq $script:DeletedCopy) { continue }
             $ab1Now[$k] | Should -Be $script:Ab1After[$k] -Because "$k of AB1 must not change while CD2 runs"
         }
         foreach ($k in $script:OldHash.Keys) {
