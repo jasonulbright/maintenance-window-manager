@@ -43,6 +43,9 @@
         'Copy-MaintenanceWindowToCollections'
         'Set-BulkWindowEnabled'
 
+        # Site data
+        'Resolve-MwmReportsPath'
+
         # Export
         'Export-MaintenanceWindowsCsv'
         'Export-MaintenanceWindowsHtml'

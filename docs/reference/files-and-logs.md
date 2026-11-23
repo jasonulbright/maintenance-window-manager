@@ -18,20 +18,23 @@ None.
 
 | Path | Content | Written when |
 |---|---|---|
-| `MaintWindowMgr.prefs.json` | The settings. | You select **OK** in Options, or change the theme. |
+| `MaintWindowMgr.prefs.json` | The global settings (the theme). With no site chosen, also the site code and the SMS Provider. | You select **OK** in Options, or change the theme. |
 | `MaintWindowMgr.windowstate.json` | The size, the place and the open view of the window. | You close the window. |
 | `Logs\MWM-<yyyyMMdd-HHmmss>.log` | The log of one session. | During the session. |
 | `Logs\MWM-startup-<yyyyMMdd-HHmmss>.txt` | The PowerShell transcript of the start. | At the start. |
 | `Logs\MWM-crash-<yyyyMMdd-HHmmss>.txt` | The error text when the window closes on an unhandled error. | An unhandled error. |
-| `Reports\MWM-Windows-<date>-<time>.csv` or `.html` | An export of the active view. | **Export CSV** or **Export HTML**. |
+| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager\prefs.json` | The site code and the SMS Provider of the site. | You select **OK** in Options. |
+| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager\reports\MWM-Windows-<date>-<time>.csv` or `.html` | An export of the active view. | **Export CSV** or **Export HTML**. |
 | `Templates\*.json` | The schedule templates. Five ship with the tool. | You save or delete a template. |
+
+With no site chosen, the tool uses `Reports\` beside the script for the exports and keeps the site settings in `MaintWindowMgr.prefs.json`. The first start for a site copies the old `Reports` files into the site folder and keeps the old files. See [Sites](../core/options.md#sites). The templates stay in the folder of the script for all sites.
 
 ## Steps
 
 ### Clean up
 
 1. Close the tool.
-2. Delete the logs and the reports that you do not need.
+2. Delete the logs and the reports that you do not need. The reports of a site are in the `reports` folder of that site.
 
 ## Limits
 

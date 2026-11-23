@@ -14,7 +14,7 @@ Use it to set up an account, or to find out why a read or a change is refused.
 
 | Action | Right |
 |---|---|
-| Start the tool | Read and write in the folder of the script. |
+| Start the tool | Read and write in the folder of the script, and in the data folder of the site under `%LOCALAPPDATA%\AppPackagerData`. |
 | Read and reload the templates | Read access to the `Templates` folder. No site access is needed. |
 | Create, edit and delete a template | Read and write access to the `Templates` folder. No site access is needed. |
 | **Refresh** and all views | The Configuration Manager console on the computer, and read access to the SMS Provider and to collections under your Configuration Manager role. |

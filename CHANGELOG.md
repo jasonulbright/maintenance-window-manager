@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Keep reports and site settings per site under the data folder.
+
 ## [2026.11.20.0026] - 2026-11-20
 
 ## 6 changes: two-query window load, ConfigMgr wording, tooltips, safer capture tool

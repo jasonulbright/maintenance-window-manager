@@ -40,7 +40,7 @@ Use it to read the maintenance windows of the site and to change them.
 ### Export the view
 
 1. Select **Export CSV** or **Export HTML**.
-2. In the Save As dialog, keep the name or type a new name. The folder is `Reports` beside the script. The name is `MWM-Windows-<date>-<time>`.
+2. In the Save As dialog, keep the name or type a new name. The folder is the `reports` folder of the site, for example `%LOCALAPPDATA%\AppPackagerData\sites\AB1\tools\maintenance-window-manager\reports`. With no site chosen, it is `Reports` beside the script. The name is `MWM-Windows-<date>-<time>`.
 3. Select **Save**. The log shows `Exported CSV:` or `Exported HTML:`, as you selected, and the path.
 
 ![The window after an export](../images/windows-exported.png)
