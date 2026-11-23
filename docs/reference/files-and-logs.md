@@ -18,12 +18,12 @@ None.
 
 | Path | Content | Written when |
 |---|---|---|
-| `MaintWindowMgr.prefs.json` | The global settings (the theme). With no site chosen, also the site code and the SMS Provider. | You select **OK** in Options, or change the theme. |
+| `MaintWindowMgr.prefs.json` | The global settings (the theme). With no site chosen, also the site code and the SMS Provider. With a site, the site code and the provider in this file are old copies that the tool no longer changes. | You select **OK** in Options, or change the theme. |
 | `MaintWindowMgr.windowstate.json` | The size, the place and the open view of the window. | You close the window. |
 | `Logs\MWM-<yyyyMMdd-HHmmss>.log` | The log of one session. | During the session. |
 | `Logs\MWM-startup-<yyyyMMdd-HHmmss>.txt` | The PowerShell transcript of the start. | At the start. |
 | `Logs\MWM-crash-<yyyyMMdd-HHmmss>.txt` | The error text when the window closes on an unhandled error. | An unhandled error. |
-| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager\prefs.json` | The site code and the SMS Provider of the site. | You select **OK** in Options. |
+| `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager\prefs.json` | The site code and the SMS Provider of the site. | You select **OK** in Options, or change the theme. |
 | `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager\reports\MWM-Windows-<date>-<time>.csv` or `.html` | An export of the active view. | **Export CSV** or **Export HTML**. |
 | `Templates\*.json` | The schedule templates. Five ship with the tool. | You save or delete a template. |
 

@@ -30,12 +30,13 @@ None.
 
 1. Close the tool.
 2. Delete `MaintWindowMgr.prefs.json` and `MaintWindowMgr.windowstate.json`. To reset the connection of one site, delete `prefs.json` in the folder of that site too.
-3. If the suite launcher started the tool, clear the environment variables `SUITE_CM_SITECODE` and `SUITE_CM_PROVIDER` too. When no site is chosen, the tool takes the site code and the provider from them if the settings are empty. With a site, the launcher chooses the site and the provider comes from the site.
+3. If the suite launcher started the tool, clear the environment variables `SUITE_CM_SITECODE`, `APP_PACKAGER_SITE` and `SUITE_CM_PROVIDER` too. A valid site code in `SUITE_CM_SITECODE` or `APP_PACKAGER_SITE` chooses the site. The variable `SUITE_CM_PROVIDER` fills an empty provider only when no site is chosen. With a site, the provider comes from the site.
 4. Start the tool. The window of the first start shows.
 
 ## Limits
 
 - The global files are in the folder of the script. Extract the tool to a folder that you can write to.
+- When no launcher chose a site, the `SiteCode` in `MaintWindowMgr.prefs.json` chooses the site. To change it, edit that file, or choose the site in the launcher.
 - The tool never changes the site code. Choose the site in the AppPackager Suite launcher and restart the tool.
 
 ## Troubleshooting

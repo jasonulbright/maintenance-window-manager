@@ -101,7 +101,8 @@ Describe 'Per-site data of Maintenance Window Manager' {
         $global:Prefs['SMSProvider'] = 'cm03.example.com'
         Save-MwmPreferences -Prefs $global:Prefs
 
-        # Back to AB1.
+        # Back to AB1. A report that the first start copied is deleted first: a later start must not copy it again.
+        Remove-Item -LiteralPath (Join-Path $script:DataRoot 'sites\AB1\tools\maintenance-window-manager\reports\MWM-Windows-20261120-100000.html') -Force
         $script:Ab1Again = Start-Tool -Folder 'AB1'
     }
 
@@ -172,6 +173,11 @@ Describe 'Per-site data of Maintenance Window Manager' {
         $script:Ab1Again.Prefs['SMSProvider'] | Should -Be 'cm02.example.com' -Because 'AB1 saved this provider before CD2 started'
         Test-Path -LiteralPath (Join-Path $script:Ab1Again.Reports 'MWM-Windows-20261121-090000.csv') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $script:Ab1Again.Reports 'MWM-Windows-20261121-100000.csv') | Should -BeFalse
+    }
+
+    It 'copies the old data only at the first start for a site' {
+        Test-Path -LiteralPath (Join-Path $script:Ab1Again.Reports 'MWM-Windows-20261120-100000.html') | Should -BeFalse -Because 'the copy runs once, so a deleted file is not restored'
+        Test-Path -LiteralPath (Join-Path $script:Ab1Again.Reports 'MWM-Windows-20261120-100000.csv') | Should -BeTrue
     }
 
     It 'keeps a different provider for each site' {
@@ -258,6 +264,17 @@ Describe 'Static guard: no site store is built from the script folder' {
     It 'stores no absolute path in the prefs defaults' {
         $def = $script:Ast.Find({ param($x) $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq 'Get-MwmPreferences' }, $true)
         $def.Extent.Text | Should -Not -Match 'Join-Path|PSScriptRoot'
+    }
+
+    It 'keeps the Site Code box read-only and the site code unchanged in Options when a site is active' {
+        $script:ShellText | Should -Match 'if \(\$script:Site\.Active\) \{[^}]*\$txtSiteCode\.IsReadOnly = \$true'
+        $script:ShellText | Should -Match 'The site is chosen in the AppPackager Suite launcher\. Restart this tool after you change it\.'
+        $script:ShellText | Should -Match 'if \(\$script:Site\.Active\) \{ \$newSite = \[string\]\$global:Prefs\.SiteCode \}'
+    }
+
+    It 'uses the launcher variables only when no site is active and passes the reports folder to the dialogs' {
+        $script:ShellText | Should -Match 'if \(-not \$script:Site\.Active\) \{\s+if \(-not \$global:Prefs\.SiteCode\s+-and \$env:SUITE_CM_SITECODE\)'
+        @([regex]::Matches($script:ShellText, 'InitialDirectory = Resolve-MwmReportsPath -ToolRoot \$PSScriptRoot -Site \$script:Site -Create')).Count | Should -Be 2
     }
 
     It 'reads and saves the prefs through the site prefs functions' {

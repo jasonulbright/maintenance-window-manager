@@ -39,7 +39,7 @@ The tool keeps its site data per site in `%LOCALAPPDATA%\AppPackagerData\sites\<
 
 A tool that is open keeps its site until you restart it. When the launcher chooses another site, the footer shows a note, for example: The launcher now uses site CD2. This window keeps site AB1 until you restart it.
 
-The first start after an update copies the old data of the site into the site folder. The tool keeps the old files. The log shows `Site AB1; data in <folder>` at each start. When no site is chosen, the tool uses its old places beside the script.
+The first start after an update copies the old data of the site into the site folder. The tool keeps the old files. The log shows `Site AB1; data in <folder>` at each start. When no site is chosen, the tool uses its old places beside the script. When no launcher chose a site, the `SiteCode` in `MaintWindowMgr.prefs.json` chooses it. To change it, edit that file, or choose the site in the launcher.
 
 ![The Site Code field and its tooltip](../images/options-site.png)
 

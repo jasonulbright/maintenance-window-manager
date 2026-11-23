@@ -123,7 +123,7 @@ if (-not $script:Site.Active) {
 $script:ToolLogPath = Join-Path $__txDir ('MWM-{0}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
 Initialize-Logging -LogPath $script:ToolLogPath
 if ($script:Site.Active) { Write-Log ('Site {0}; data in {1}' -f $script:Site.SiteFolder, $script:Site.ToolFolder) }
-elseif ($script:Site.Reason) { Write-Log ('No site data folder: {0}' -f $script:Site.Reason) }
+elseif ($script:Site.Reason -and $script:Site.Reason -notlike 'No site is chosen*') { Write-Log ('No site data folder: {0}' -f $script:Site.Reason) }
 
 # =============================================================================
 # Load XAML and resolve named elements.
