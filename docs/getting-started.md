@@ -20,7 +20,7 @@ Use it to review the maintenance windows of a site, to find collections without 
 
 ### Start the tool
 
-1. Extract the release zip to a folder that you can write to. The tool saves its settings, logs, templates and reports in that folder.
+1. Extract the release zip to a folder that you can write to. In that folder, the tool saves the global settings, the session logs and the templates. It saves the site settings and the reports per site under `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager`.
 2. Right-click `start-maintenancewindowmgr.ps1` and select **Run with PowerShell**. Or run this command:
 
 ```powershell
@@ -38,7 +38,7 @@ If you select **Refresh** before you set the connection, the log asks you to ope
 ### Set the connection
 
 1. Select **Options** in the sidebar.
-2. Type the **Site Code**, for example `MCM`.
+2. Type the **Site Code**, for example `MCM`. When the AppPackager Suite launcher chose a site, the field is read-only. See [Sites](core/options.md#sites).
 3. Type the **SMS Provider**, the FQDN of the server, for example `cm01.contoso.com`.
 4. Select **OK**. The right end of the footer shows the site, for example `Site MCM`, a middle dot, and `cm01.contoso.com`. The footer is read-only. Select the site text to open Options.
 

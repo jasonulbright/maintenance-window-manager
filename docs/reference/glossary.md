@@ -27,6 +27,7 @@ None.
 | Template | A saved schedule in `Templates` that you apply to collections. |
 | Window type | Which deployments the window applies to: any, software updates only or task sequences only. |
 | SMS Provider | The server role that gives access to the site data. |
+| Site folder | The folder `%LOCALAPPDATA%\AppPackagerData\sites\<SITE>\tools\maintenance-window-manager`. It holds the settings and the reports of one site. |
 
 ## Steps
 

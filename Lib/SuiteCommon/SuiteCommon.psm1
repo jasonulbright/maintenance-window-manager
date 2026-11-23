@@ -635,6 +635,576 @@ function Save-SuiteSettings {
 # Module identity
 # ---------------------------------------------------------------------------
 
+#region Site data contract (Q-112b)
+# Paths and names of the per-site data layout. See docs\reference\site-data-contract.md.
+# Nothing here creates, reads or writes a folder except Get-SuiteActiveSite (read only).
+# No app calls these functions yet.
+
+$script:SuiteReservedSiteCodes = @('AUX', 'CON', 'ENV', 'NUL', 'PRN', 'SMS')
+
+function Test-SuiteSiteCode {
+    <#
+    .SYNOPSIS
+        True when the value is a valid ConfigMgr site code for a folder name.
+    .DESCRIPTION
+        Three characters A-Z or 0-9, either case, no spaces. The names that Windows and
+        ConfigMgr reserve (AUX, CON, ENV, NUL, PRN, SMS) are refused.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][AllowEmptyString()][string]$SiteCode)
+    if ([string]::IsNullOrEmpty($SiteCode)) { return $false }
+    if ($SiteCode -notmatch '^[A-Za-z0-9]{3}$') { return $false }
+    return ($script:SuiteReservedSiteCodes -notcontains $SiteCode.ToUpperInvariant())
+}
+
+function ConvertFrom-SuiteSiteFolderName {
+    <#
+    .SYNOPSIS
+        Splits a site folder name (AB1 or AB1~2) into its site code and ordinal. Returns $null when invalid.
+    #>
+    [CmdletBinding()]
+    param([AllowNull()][AllowEmptyString()][string]$Name)
+    if ([string]::IsNullOrEmpty($Name)) { return $null }
+    $m = [regex]::Match($Name, '^([A-Za-z0-9]{3})(?:~([2-9]|[1-9][0-9]+))?$')
+    if (-not $m.Success) { return $null }
+    if (-not (Test-SuiteSiteCode -SiteCode $m.Groups[1].Value)) { return $null }
+    $code = $m.Groups[1].Value.ToUpperInvariant()
+    $ordinal = 1
+    if ($m.Groups[2].Success) { $ordinal = [int]$m.Groups[2].Value }
+    $folder = $code
+    if ($ordinal -gt 1) { $folder = '{0}~{1}' -f $code, $ordinal }
+    return [pscustomobject]@{ SiteCode = $code; Ordinal = $ordinal; FolderName = $folder }
+}
+
+function Test-SuiteSiteName {
+    <#
+    .SYNOPSIS
+        True when the value is a valid site folder name: a site code, or a site code with ~N (N 2 or more) for a reused code.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param([AllowNull()][AllowEmptyString()][string]$Name)
+    return ($null -ne (ConvertFrom-SuiteSiteFolderName -Name $Name))
+}
+
+function Test-SuiteSitePathSegment {
+    # A tool or area segment: lower case letters, digits and hyphens, not starting with a hyphen.
+    param([AllowNull()][AllowEmptyString()][string]$Value)
+    return (-not [string]::IsNullOrEmpty($Value)) -and ($Value -cmatch '^[a-z0-9][a-z0-9-]*$')
+}
+
+function Get-SuiteFreeSiteFolderName {
+    <#
+    .SYNOPSIS
+        Returns the first free folder name for a site code: AB1, then AB1~2, AB1~3 and so on.
+    .DESCRIPTION
+        Used when a code is reused by a different environment. Names compare without regard to case.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$SiteCode,
+        [string[]]$ExistingNames = @()
+    )
+    if (-not (Test-SuiteSiteCode -SiteCode $SiteCode)) { throw "Invalid site code: '$SiteCode'." }
+    $code = $SiteCode.ToUpperInvariant()
+    $taken = @{}
+    foreach ($n in @($ExistingNames)) { if ($n) { $taken[$n.ToUpperInvariant()] = $true } }
+    if (-not $taken.ContainsKey($code)) { return $code }
+    $i = 2
+    while ($taken.ContainsKey(('{0}~{1}' -f $code, $i))) { $i++ }
+    return ('{0}~{1}' -f $code, $i)
+}
+
+function Get-SuiteDataRoot {
+    <#
+    .SYNOPSIS
+        Returns the per-user data root of the site layout. Creates nothing.
+    .DESCRIPTION
+        APP_PACKAGER_DATA_ROOT, when set, is a container: the root is <value>\Users\<SID>
+        (an already scoped value is kept). Without it the root is %LOCALAPPDATA%\AppPackagerData.
+        A root under Program Files is refused.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([string]$DataRootOverride)
+    $override = $DataRootOverride
+    if ([string]::IsNullOrWhiteSpace($override)) { $override = [Environment]::GetEnvironmentVariable('APP_PACKAGER_DATA_ROOT') }
+    if (-not [string]::IsNullOrWhiteSpace($override)) {
+        $full = [IO.Path]::GetFullPath($override.Trim()).TrimEnd('\', '/')
+        $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $parent = Split-Path -Path $full -Parent
+        $alreadyScoped = ((Split-Path -Path $full -Leaf) -eq $sid) -and $parent -and ((Split-Path -Path $parent -Leaf) -eq 'Users')
+        if ($alreadyScoped) { $root = $full } else { $root = Join-Path (Join-Path $full 'Users') $sid }
+    }
+    else {
+        $local = [Environment]::GetFolderPath('LocalApplicationData')
+        if ([string]::IsNullOrWhiteSpace($local)) { throw 'The LocalApplicationData folder could not be resolved.' }
+        $root = Join-Path $local 'AppPackagerData'
+    }
+    foreach ($pf in @([Environment]::GetFolderPath('ProgramFiles'), [Environment]::GetFolderPath('ProgramFilesX86'))) {
+        if ([string]::IsNullOrWhiteSpace($pf)) { continue }
+        $p = $pf.TrimEnd('\', '/')
+        if ($root.Equals($p, [StringComparison]::OrdinalIgnoreCase) -or $root.StartsWith($p + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'User data cannot be stored under Program Files.'
+        }
+    }
+    return $root
+}
+
+function Get-SuiteSiteFolder {
+    <#
+    .SYNOPSIS
+        Returns the path of a site folder, <DataRoot>\sites\<FOLDER>, with an optional tool or area below it. Creates nothing.
+    .DESCRIPTION
+        -SiteCode takes a folder name (AB1 or AB1~2). -Tool gives tools\<tool>. -Area gives a relative path
+        of lower case segments (for example deployments or pivots\sessions). -Tool and -Area are exclusive.
+        An invalid value throws.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$SiteCode,
+        [string]$Tool,
+        [string]$Area,
+        [string]$DataRoot
+    )
+    $parsed = ConvertFrom-SuiteSiteFolderName -Name $SiteCode
+    if (-not $parsed) { throw "Invalid site folder name: '$SiteCode'." }
+    if ($Tool -and $Area) { throw 'Use -Tool or -Area, not both.' }
+    if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+    $path = Join-Path (Join-Path $DataRoot 'sites') $parsed.FolderName
+    if ($Tool) {
+        if (-not (Test-SuiteSitePathSegment -Value $Tool)) { throw "Invalid tool name: '$Tool'." }
+        $path = Join-Path (Join-Path $path 'tools') $Tool
+    }
+    elseif ($Area) {
+        foreach ($seg in $Area.Split('\')) {
+            if (-not (Test-SuiteSitePathSegment -Value $seg)) { throw "Invalid area: '$Area'." }
+        }
+        $path = Join-Path $path $Area
+    }
+    return $path
+}
+
+function Get-SuiteActiveSite {
+    <#
+    .SYNOPSIS
+        Returns the active site as @{ SiteCode; Source } or $null. Reads only.
+    .DESCRIPTION
+        Order: SUITE_CM_SITECODE, APP_PACKAGER_SITE, then active-site.json in the data root.
+        A value that is not a valid site folder name is skipped. Nothing is written. -IgnoreEnvironment reads the file only:
+        a tool uses it to see that the launcher changed the site after the tool started.
+    #>
+    [CmdletBinding()]
+    param([string]$DataRoot, [switch]$IgnoreEnvironment)
+    if (-not $IgnoreEnvironment) {
+        foreach ($name in 'SUITE_CM_SITECODE', 'APP_PACKAGER_SITE') {
+            $v = [Environment]::GetEnvironmentVariable($name)
+            $parsed = ConvertFrom-SuiteSiteFolderName -Name $v
+            if ($parsed) { return [pscustomobject]@{ SiteCode = $parsed.FolderName; Source = $name } }
+        }
+    }
+    try {
+        if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+        $file = Join-Path $DataRoot 'active-site.json'
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $null }
+        $json = Get-Content -LiteralPath $file -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if ($json.schemaVersion -ne 1) { return $null }
+        $parsed = ConvertFrom-SuiteSiteFolderName -Name ([string]$json.siteCode)
+        if ($parsed) { return [pscustomobject]@{ SiteCode = $parsed.FolderName; Source = 'active-site.json' } }
+    }
+    catch { Write-Verbose "active-site.json not usable: $($_.Exception.Message)" }
+    return $null
+}
+#endregion
+
+#region Site context for the launcher and the tools (Q-112f)
+# The launcher writes active-site.json. Each tool resolves its site at start (Resolve-SuiteToolSite), keeps its
+# site-scoped prefs and data under sites\<SITE>\tools\<tool>, and keeps its global prefs beside the script.
+
+function Write-SuiteSiteJsonFile {
+    # Writes an object as JSON through a temp file and a swap. Returns $true or $false. Never throws.
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)]$Object)
+    $temp = $null
+    try {
+        $dir = Split-Path -Path $Path -Parent
+        if ($dir -and -not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop) }
+        $bytes = ConvertTo-SuiteMigrationJsonBytes -Object $Object
+        $temp = '{0}.{1}.tmp' -f $Path, [guid]::NewGuid().ToString('N')
+        [IO.File]::WriteAllBytes($temp, $bytes)
+        if (Test-Path -LiteralPath $Path -PathType Leaf) { [IO.File]::Replace($temp, $Path, [NullString]::Value) }
+        else { [IO.File]::Move($temp, $Path) }
+        $temp = $null
+        return $true
+    }
+    catch { Write-Verbose ('The file {0} was not written: {1}' -f $Path, $_.Exception.Message); return $false }
+    finally { if ($temp -and (Test-Path -LiteralPath $temp)) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue } }
+}
+
+function Get-SuiteSiteList {
+    <#
+    .SYNOPSIS
+        Lists the site folders in the data root. Reads only.
+    .DESCRIPTION
+        One object per valid folder name under sites\: FolderName, SiteCode, Ordinal, Label, Providers, LastUsedUtc. A
+        folder with no readable site.json still shows, with empty fields. The list is sorted by folder name.
+    #>
+    [CmdletBinding()]
+    param([string]$DataRoot)
+    if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+    $sites = Join-Path $DataRoot 'sites'
+    if (-not (Test-Path -LiteralPath $sites -PathType Container)) { return @() }
+    $rows = New-Object System.Collections.Generic.List[object]
+    foreach ($d in @(Get-ChildItem -LiteralPath $sites -Directory -Force -ErrorAction SilentlyContinue)) {
+        $parsed = ConvertFrom-SuiteSiteFolderName -Name $d.Name
+        if (-not $parsed -or $parsed.FolderName -cne $d.Name) { continue }
+        $j = Read-SuiteMigrationJson -Path (Join-Path $d.FullName 'site.json')
+        $providers = @()
+        $label = ''
+        $used = ''
+        if ($j -and $j.schemaVersion -eq 1) {
+            if ($j.providers) { $providers = @($j.providers | ForEach-Object { [string]$_ } | Where-Object { $_ }) }
+            if ($j.label) { $label = [string]$j.label }
+            if ($j.lastUsedUtc) { $used = [string]$j.lastUsedUtc }
+        }
+        $rows.Add([pscustomobject]@{ FolderName = $parsed.FolderName; SiteCode = $parsed.SiteCode; Ordinal = $parsed.Ordinal; Label = $label; Providers = $providers; LastUsedUtc = $used })
+    }
+    return @($rows.ToArray() | Sort-Object FolderName)
+}
+
+function Set-SuiteSiteIdentity {
+    <#
+    .SYNOPSIS
+        Creates sites\<SITE>\site.json, or updates it: the provider moves to the front of the list and lastUsedUtc is set.
+    .DESCRIPTION
+        -SiteCode takes a folder name (AB1 or AB1~2). Returns the folder name, or $null when the name is invalid or the file
+        could not be written. An existing site.json with another schemaVersion is left as it is.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Writes one small JSON file in the per-user data root.')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteCode,
+        [string]$Provider,
+        [string]$Label,
+        [string]$DataRoot,
+        [datetime]$NowUtc
+    )
+    $parsed = ConvertFrom-SuiteSiteFolderName -Name $SiteCode
+    if (-not $parsed) { return $null }
+    if (-not $PSBoundParameters.ContainsKey('NowUtc')) { $NowUtc = [datetime]::UtcNow }
+    $now = $NowUtc.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
+    $folder = Get-SuiteSiteFolder -SiteCode $parsed.FolderName -DataRoot $DataRoot
+    $path = Join-Path $folder 'site.json'
+    $existing = Read-SuiteMigrationJson -Path $path
+    if (-not $existing -and (Test-Path -LiteralPath $path)) { return $null }
+    $providers = New-Object System.Collections.Generic.List[string]
+    $created = $now
+    $migratedFrom = ''
+    $labelText = ''
+    if ($existing) {
+        if ($existing.schemaVersion -ne 1) { return $parsed.FolderName }
+        if ($existing.createdUtc) { $created = [string]$existing.createdUtc }
+        if ($existing.migratedFrom) { $migratedFrom = [string]$existing.migratedFrom }
+        if ($existing.label) { $labelText = [string]$existing.label }
+        foreach ($p in @($existing.providers)) { if ($p) { $providers.Add([string]$p) } }
+    }
+    if ($Label) { $labelText = $Label.Trim() }
+    $p = ([string]$Provider).Trim()
+    if ($p) {
+        for ($i = $providers.Count - 1; $i -ge 0; $i--) { if ($providers[$i].Equals($p, [StringComparison]::OrdinalIgnoreCase)) { $providers.RemoveAt($i) } }
+        $providers.Insert(0, $p)
+    }
+    $node = [ordered]@{ schemaVersion = 1; siteCode = $parsed.SiteCode }
+    if ($labelText) { $node['label'] = $labelText }
+    $node['providers'] = @($providers.ToArray())
+    $node['createdUtc'] = $created
+    $node['lastUsedUtc'] = $now
+    if ($migratedFrom) { $node['migratedFrom'] = $migratedFrom }
+    if (-not (Write-SuiteSiteJsonFile -Path $path -Object $node)) { return $null }
+    return $parsed.FolderName
+}
+
+function Set-SuiteActiveSite {
+    <#
+    .SYNOPSIS
+        Writes active-site.json in the data root. Returns $true when the file was written.
+    .DESCRIPTION
+        -SiteCode takes a folder name (AB1 or AB1~2). The launcher calls this when the user changes the site. Open tools
+        keep the site they started with and show a note.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Writes one small JSON file in the per-user data root.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$SiteCode, [string]$DataRoot, [datetime]$NowUtc)
+    $parsed = ConvertFrom-SuiteSiteFolderName -Name $SiteCode
+    if (-not $parsed) { return $false }
+    if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+    if (-not $PSBoundParameters.ContainsKey('NowUtc')) { $NowUtc = [datetime]::UtcNow }
+    $now = $NowUtc.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
+    $node = [ordered]@{ schemaVersion = 1; siteCode = $parsed.FolderName; changedUtc = $now }
+    return (Write-SuiteSiteJsonFile -Path (Join-Path $DataRoot 'active-site.json') -Object $node)
+}
+
+function Resolve-SuiteToolSite {
+    <#
+    .SYNOPSIS
+        Resolves the site of a suite tool at start and migrates that tool's old data into the site folder once.
+    .DESCRIPTION
+        Site: SUITE_CM_SITECODE, then APP_PACKAGER_SITE, then active-site.json (Get-SuiteActiveSite), then the SiteCode
+        in the tool's own old prefs file. With no site the result has Active = $false and the tool keeps its old paths.
+        With a site, the first start of the tool for that site copies the tool's old site data into
+        sites\<SITE>\tools\<tool> (Invoke-SuiteSiteMigration -Tool: copy, verify the SHA-256, keep the old files) and writes
+        tools\<tool>\migrated.json. A later start skips the copy. A site that reuses a code (AB1~2) gets no copy.
+        Returns Active, Tool, SiteFolder, SiteCode, Provider, Source, SiteRoot, ToolFolder, DataRoot, Migration, Reason.
+    .PARAMETER Tool
+        The tool folder name, for example site-hygiene.
+    .PARAMETER ToolRoot
+        The tool folder (the script folder). Its parent is the suite root that holds the other tools.
+    .PARAMETER LegacyPrefsPath
+        The tool's prefs file beside the script. Its SiteCode is the last source when nothing else names a site.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Tool,
+        [Parameter(Mandatory)][string]$ToolRoot,
+        [string]$LegacyPrefsPath,
+        [string]$DataRoot,
+        [string]$LocalRoot,
+        [string]$SuiteRoot,
+        [switch]$NoMigration,
+        [switch]$IgnoreEnvironment
+    )
+    $none = [pscustomobject]@{ Active = $false; Tool = $Tool; SiteFolder = ''; SiteCode = ''; Provider = ''; Source = ''; SiteRoot = ''; ToolFolder = ''; DataRoot = ''; Migration = ''; Reason = '' }
+    try {
+        if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+        if (-not $SuiteRoot) { $SuiteRoot = Split-Path -Path $ToolRoot.TrimEnd('\', '/') -Parent }
+        $source = ''
+        $folderName = ''
+        $active = Get-SuiteActiveSite -DataRoot $DataRoot -IgnoreEnvironment:$IgnoreEnvironment
+        if ($active) { $folderName = $active.SiteCode; $source = $active.Source }
+        elseif ($LegacyPrefsPath) {
+            $p = Read-SuiteMigrationJson -Path $LegacyPrefsPath
+            if ($p -and $p.SiteCode -and (Test-SuiteSiteCode -SiteCode ([string]$p.SiteCode))) { $folderName = ([string]$p.SiteCode).ToUpperInvariant(); $source = 'prefs' }
+        }
+        if (-not $folderName) { $none.Reason = 'No site is chosen. Choose a site in the AppPackager Suite launcher.'; return $none }
+        $parsed = ConvertFrom-SuiteSiteFolderName -Name $folderName
+        $siteRoot = Get-SuiteSiteFolder -SiteCode $parsed.FolderName -DataRoot $DataRoot
+        $toolFolder = Get-SuiteSiteFolder -SiteCode $parsed.FolderName -Tool $Tool -DataRoot $DataRoot
+        $migration = ''
+        $marker = Join-Path $toolFolder 'migrated.json'
+        if ($NoMigration) { $migration = 'skipped' }
+        elseif (Test-Path -LiteralPath $marker -PathType Leaf) { $migration = 'done earlier' }
+        elseif ($parsed.Ordinal -gt 1) { $migration = 'not needed (reused site code)' }
+        else {
+            $args2 = @{ SuiteRoot = $SuiteRoot; DataRoot = $DataRoot; SiteCode = $parsed.SiteCode; Tool = $Tool }
+            if ($LocalRoot) { $args2['LocalRoot'] = $LocalRoot }
+            # Several tools can start together. One copy runs at a time per data root.
+            $mutexName = 'Global\AppPackagerSuiteSiteMigration-' + [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($DataRoot.ToLowerInvariant()))).Replace('-', '').Substring(0, 24)
+            $mutex = New-Object System.Threading.Mutex($false, $mutexName)
+            $held = $false
+            try {
+                try { $held = $mutex.WaitOne([TimeSpan]::FromSeconds(60)) } catch [System.Threading.AbandonedMutexException] { $held = $true }
+                if (-not $held) { $none.Reason = 'Another start is copying the old data. This tool uses its old data location for this session.'; return $none }
+                if (Test-Path -LiteralPath $marker -PathType Leaf) { $report = [pscustomobject]@{ Outcome = 'done earlier'; Items = @() } }
+                else {
+                    try { $report = Invoke-SuiteSiteMigration @args2 }
+                    catch { $report = [pscustomobject]@{ Outcome = 'Failed'; Items = @(); Error = $_.Exception.Message } }
+                }
+            }
+            finally { if ($held) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
+            $migration = [string]$report.Outcome
+            if ($report.Outcome -eq 'Failed') {
+                $none.Migration = 'Failed'
+                $none.Reason = 'The copy of the old data into the site folder failed. This tool uses its old data location for this session. ' + [string]$report.Error
+                return $none
+            }
+            if ($report.Outcome -ne 'done earlier' -and $report.Outcome -ne 'NothingMigrated') {
+                $copied = @($report.Items | Where-Object { $_.Status -eq 'Copied' }).Count
+                $node = [ordered]@{ schemaVersion = 1; tool = $Tool; siteCode = $parsed.FolderName; outcome = $report.Outcome; copiedItems = $copied; doneUtc = [datetime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture) }
+                [void](Write-SuiteSiteJsonFile -Path $marker -Object $node)
+            }
+        }
+        $provider = ''
+        $sj = Read-SuiteMigrationJson -Path (Join-Path $siteRoot 'site.json')
+        if ($sj -and $sj.schemaVersion -eq 1 -and $sj.providers) { $provider = [string](@($sj.providers)[0]) }
+        if (-not $provider) {
+            $tp = Read-SuiteMigrationJson -Path (Join-Path $toolFolder 'prefs.json')
+            if ($tp -and $tp.SMSProvider) { $provider = [string]$tp.SMSProvider }
+        }
+        return [pscustomobject]@{ Active = $true; Tool = $Tool; SiteFolder = $parsed.FolderName; SiteCode = $parsed.SiteCode; Provider = $provider; Source = $source; SiteRoot = $siteRoot; ToolFolder = $toolFolder; DataRoot = $DataRoot; Migration = $migration; Reason = '' }
+    }
+    catch {
+        $none.Reason = 'The site could not be resolved: ' + $_.Exception.Message
+        return $none
+    }
+}
+
+function Resolve-SuiteToolPath {
+    <#
+    .SYNOPSIS
+        Returns the path of a tool store: below the site's tool folder when a site is active, else the old path.
+    .PARAMETER Name
+        A path relative to sites\<SITE>\tools\<tool>, for example reports or rings\runs or lastscan.json.
+    .PARAMETER Create
+        Create the folder (or, with -File, the parent folder) of the site path.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]$Site,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$LegacyPath,
+        [switch]$File,
+        [switch]$Create
+    )
+    if (-not $Site -or -not $Site.Active) { return $LegacyPath }
+    foreach ($seg in $Name.Split('\', [StringSplitOptions]::RemoveEmptyEntries)) {
+        if ($seg -eq '..' -or $seg -eq '.' -or $seg.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0) { throw "Invalid store name: '$Name'." }
+    }
+    $path = Join-Path $Site.ToolFolder $Name
+    if ($Create) {
+        $dir = $path
+        if ($File) { $dir = Split-Path -Path $path -Parent }
+        if ($dir -and -not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Path $dir -Force) }
+    }
+    return $path
+}
+
+function ConvertTo-SuiteSettingsTable {
+    # The top-level properties of a JSON file as a hashtable. An empty table when the file is missing or not valid.
+    param([Parameter(Mandatory)][string]$Path)
+    $table = @{}
+    $j = Read-SuiteMigrationJson -Path $Path
+    if ($j -is [pscustomobject]) { foreach ($p in $j.PSObject.Properties) { $table[$p.Name] = $p.Value } }
+    return $table
+}
+
+function Read-SuiteToolPrefs {
+    <#
+    .SYNOPSIS
+        Reads the prefs of a tool: global keys from the old prefs file, site keys from the site's tool prefs.json.
+    .DESCRIPTION
+        With no active site this is Read-SuiteSettings on the old file. With a site, each key in -SiteKeys comes from
+        sites\<SITE>\tools\<tool>\prefs.json, or from the default when the site file has none, so the values of another site
+        never carry over. SiteCode is the site's code. An empty SMSProvider takes the provider in site.json.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification='Reads the full prefs hashtable by design.')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][hashtable]$Defaults,
+        [Parameter(Mandatory)]$Site,
+        [string[]]$SiteKeys = @('SiteCode', 'SMSProvider')
+    )
+    $prefs = Read-SuiteSettings -Path $Path -Defaults $Defaults
+    if (-not $Site -or -not $Site.Active) { return $prefs }
+    $siteDefaults = @{}
+    foreach ($k in $SiteKeys) { if ($Defaults.ContainsKey($k)) { $siteDefaults[$k] = $Defaults[$k] } }
+    $fromSite = Read-SuiteSettings -Path (Join-Path $Site.ToolFolder 'prefs.json') -Defaults $siteDefaults
+    foreach ($k in $siteDefaults.Keys) { $prefs[$k] = $fromSite[$k] }
+    if ($SiteKeys -contains 'SiteCode') { $prefs['SiteCode'] = $Site.SiteCode }
+    if (($SiteKeys -contains 'SMSProvider') -and [string]::IsNullOrWhiteSpace([string]$prefs['SMSProvider']) -and $Site.Provider) { $prefs['SMSProvider'] = $Site.Provider }
+    return $prefs
+}
+
+function Save-SuiteToolPrefs {
+    <#
+    .SYNOPSIS
+        Saves the prefs of a tool: site keys to the site's tool prefs.json, the other keys to the old prefs file.
+    .DESCRIPTION
+        With no active site this is Save-SuiteSettings on the old file. With a site, the site keys go to
+        sites\<SITE>\tools\<tool>\prefs.json (other keys already in that file stay), a changed SMSProvider also moves to the
+        front of the provider list in site.json, and the old file gets the global keys only. Site keys that the old file
+        already holds keep their old value, because the old file stays for one release. SiteCode is never changed here: the
+        site is chosen in the launcher. Returns $true when every file was written.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '', Justification='Writes the full prefs hashtable by design.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Writes two small JSON prefs files.')]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][hashtable]$Settings,
+        [Parameter(Mandatory)]$Site,
+        [string[]]$SiteKeys = @('SiteCode', 'SMSProvider')
+    )
+    if (-not $Site -or -not $Site.Active) { return (Save-SuiteSettings -Path $Path -Settings $Settings) }
+    $sitePath = Join-Path $Site.ToolFolder 'prefs.json'
+    $siteTable = ConvertTo-SuiteSettingsTable -Path $sitePath
+    foreach ($k in $SiteKeys) {
+        if ($k -eq 'SiteCode') { $siteTable[$k] = $Site.SiteCode; continue }
+        if ($Settings.ContainsKey($k)) { $siteTable[$k] = $Settings[$k] }
+    }
+    $okSite = Save-SuiteSettings -Path $sitePath -Settings $siteTable
+    if ($okSite -and ($SiteKeys -contains 'SMSProvider') -and $Settings.ContainsKey('SMSProvider') -and -not [string]::IsNullOrWhiteSpace([string]$Settings['SMSProvider'])) {
+        $current = ''
+        $sj = Read-SuiteMigrationJson -Path (Join-Path $Site.SiteRoot 'site.json')
+        if ($sj -and $sj.providers) { $current = [string](@($sj.providers)[0]) }
+        if (-not $current.Equals(([string]$Settings['SMSProvider']).Trim(), [StringComparison]::OrdinalIgnoreCase)) {
+            [void](Set-SuiteSiteIdentity -SiteCode $Site.SiteFolder -Provider ([string]$Settings['SMSProvider']) -DataRoot $Site.DataRoot)
+        }
+    }
+    $legacy = ConvertTo-SuiteSettingsTable -Path $Path
+    foreach ($e in @($Settings.GetEnumerator())) { if ($SiteKeys -notcontains $e.Key) { $legacy[$e.Key] = $e.Value } }
+    $okLegacy = Save-SuiteSettings -Path $Path -Settings $legacy
+    return ($okSite -and $okLegacy)
+}
+
+function Set-SuiteFooterNote {
+    <#
+    .SYNOPSIS
+        Adds a note after the site text in the footer, or clears it with an empty text.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification='Mutates in-window text only.')]
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Window, [string]$Text)
+    $site = $Window.FindName($script:FooterSiteName)
+    if ($null -eq $site) { return }
+    $state = $site.Tag
+    if ($state -isnot [hashtable]) { $state = @{ Base = [string]$site.Text; Note = '' } }
+    $state['Note'] = [string]$Text
+    $site.Tag = $state
+    $sep = [string][char]0x00B7
+    if ($state['Note']) { $site.Text = ('{0} {1} {2}' -f $state['Base'], $sep, $state['Note']); $site.ToolTip = $state['Note'] }
+    else { $site.Text = [string]$state['Base']; $site.ToolTip = $null }
+}
+
+function Start-SuiteSiteWatch {
+    <#
+    .SYNOPSIS
+        Watches active-site.json while a tool window is open and shows a footer note when the site changed.
+    .DESCRIPTION
+        A tool keeps the site it started with. When the launcher writes another site, the footer says so and says to
+        restart the tool. Returns the timer, or $null when no site is active. The timer stops when the window closes.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)]$Window, [Parameter(Mandatory)]$Site, [int]$IntervalSeconds = 5)
+    if (-not $Site -or -not $Site.Active) { return $null }
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromSeconds($IntervalSeconds)
+    $started = $Site.SiteFolder
+    $dataRoot = $Site.DataRoot
+    $win = $Window
+    $watch = @{ Shown = '' }
+    $timer.Add_Tick({
+        try {
+            $now = Get-SuiteActiveSite -DataRoot $dataRoot -IgnoreEnvironment
+            $target = ''
+            if ($now -and $now.SiteCode -cne $started) { $target = $now.SiteCode }
+            if ($target -ne $watch.Shown) {
+                $watch.Shown = $target
+                if ($target) { Set-SuiteFooterNote -Window $win -Text ('The launcher now uses site {0}. This window keeps site {1} until you restart it.' -f $target, $started) }
+                else { Set-SuiteFooterNote -Window $win -Text '' }
+            }
+        }
+        catch { Write-Verbose ('The site watch failed: {0}' -f $_.Exception.Message) }
+    }.GetNewClosure())
+    $Window.Add_Closed({ $timer.Stop() }.GetNewClosure())
+    $timer.Start()
+    return $timer
+}
+#endregion
+
 function Get-SuiteCommonVersion {
     <#
     .SYNOPSIS
@@ -1309,7 +1879,11 @@ function Update-SuiteFooter {
     param([Parameter(Mandatory)]$Window, [string]$SiteCode, [string]$SiteServer)
     $site = $Window.FindName($script:FooterSiteName)
     if ($null -eq $site) { return }
-    $site.Text = Format-SuiteFooterSite -SiteCode $SiteCode -SiteServer $SiteServer
+    $base = Format-SuiteFooterSite -SiteCode $SiteCode -SiteServer $SiteServer
+    $note = ''
+    if ($site.Tag -is [hashtable] -and $site.Tag['Note']) { $note = [string]$site.Tag['Note'] }
+    $site.Tag = @{ Base = $base; Note = $note }
+    if ($note) { $site.Text = ('{0} {1} {2}' -f $base, [string][char]0x00B7, $note) } else { $site.Text = $base }
 }
 
 # Implicit styles that every suite window takes in both themes. A text box and a combo box show a Gray2 border: the
@@ -2998,5 +3572,562 @@ function Get-SuiteButtonStateReport {
         $rows.Add([pscustomobject]@{ Name = $name; Hover = $hover; Pressed = $pressed; Focused = $focused; States = $states })
     }
     return $rows.ToArray()
+}
+#endregion
+
+#region Site data migration (Q-112c)
+# Copies the single-site data of the PowerShell app and the suite tools into the per-site layout.
+# Copy, never move: every old file stays. A copy counts only when its SHA-256 equals the source.
+# A function call starts it. No start-up code calls it and no store reads the new paths (Q-112d).
+# The twin of SiteDataMigration in the APD Engine. Both write one marker, sites\<SITE>\migration.json.
+
+# Scope manifest ids, by what the migration does with them. A test checks them against scope-manifest.json.
+$script:SuiteMigrationSiteIds = @(
+    'ps.site-fields', 'ps.site-names', 'ps.share-root', 'ps.version-monitor', 'ps.last-cm-version', 'ps.check-cm-result',
+    'suite.launcher-site', 'suite.site-hygiene', 'suite.deployment-helper', 'suite.update-planner-waves', 'suite.update-planner-reports',
+    'suite.device-inspector', 'suite.collection-manager', 'suite.collection-and-compliance-manager',
+    'suite.maintenance-window-manager', 'suite.dp-content-manager', 'suite.pivots-sessions'
+)
+$script:SuiteMigrationNoSourceIds = @('suite.handoff-ring-plan', 'suite.handoff-check-cm')
+$script:SuiteMigrationGlobalIds = @(
+    'ps.packager-options', 'ps.history', 'ps.cve-cache', 'ps.workbench', 'ps.logs', 'suite.launcher-ui', 'suite.deployment-templates',
+    'suite.update-planner-prefs', 'suite.pivots-library', 'suite.handoff-stage-manifest', 'suite.detection-installer'
+)
+$script:SuiteMigrationSecretIds = @('ps.secrets-dpapi', 'ps.teamviewer-token', 'ps.monitor-secrets')
+$script:SuiteMigrationSecretName = 'token|secret|password|passwd|apikey|api_key|credential|protected|webhook'
+
+function Get-SuiteMigrationHash {
+    param([Parameter(Mandatory)][string]$Path)
+    $stream = New-Object System.IO.FileStream($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { return ([BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()) } finally { $sha.Dispose() }
+    }
+    finally { $stream.Dispose() }
+}
+
+function Get-SuiteMigrationBytesHash {
+    param([Parameter(Mandatory)][byte[]]$Bytes)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($Bytes)).Replace('-', '').ToLowerInvariant()) } finally { $sha.Dispose() }
+}
+
+function Read-SuiteMigrationJson {
+    # Returns the parsed object, or $null when the file is missing or not valid JSON. Dates stay strings.
+    param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    try {
+        $text = [IO.File]::ReadAllText($Path)
+        if ([string]::IsNullOrWhiteSpace($text)) { return $null }
+        $splat = @{}
+        if ((Get-Command ConvertFrom-Json).Parameters.ContainsKey('DateKind')) { $splat['DateKind'] = 'String' }
+        return ($text | ConvertFrom-Json @splat)
+    }
+    catch { return $null }
+}
+
+function ConvertTo-SuiteMigrationCanonical {
+    # Compact text with object keys in ordinal order, so two equal values compare equal.
+    param($Value)
+    if ($null -eq $Value) { return 'null' }
+    if ($Value -is [string]) { return (ConvertTo-Json -InputObject $Value -Compress) }
+    if ($Value -is [bool]) { return $(if ($Value) { 'true' } else { 'false' }) }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $keys = @($Value.Keys | ForEach-Object { [string]$_ } | Sort-Object -CaseSensitive)
+        return '{' + (($keys | ForEach-Object { (ConvertTo-Json -InputObject $_ -Compress) + ':' + (ConvertTo-SuiteMigrationCanonical $Value[$_]) }) -join ',') + '}'
+    }
+    if ($Value -is [pscustomobject]) {
+        $names = @($Value.PSObject.Properties.Name | Sort-Object -CaseSensitive)
+        return '{' + (($names | ForEach-Object { (ConvertTo-Json -InputObject $_ -Compress) + ':' + (ConvertTo-SuiteMigrationCanonical $Value.$_) }) -join ',') + '}'
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        return '[' + ((@($Value) | ForEach-Object { ConvertTo-SuiteMigrationCanonical $_ }) -join ',') + ']'
+    }
+    return [string]([Convert]::ToString($Value, [Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Remove-SuiteMigrationSecret {
+    # Removes every property whose name looks like a secret, at any depth. Returns the names removed.
+    param($Node, [string]$Path = '')
+    $dropped = New-Object System.Collections.Generic.List[string]
+    if ($Node -is [pscustomobject]) {
+        foreach ($name in @($Node.PSObject.Properties.Name)) {
+            if ($name -match $script:SuiteMigrationSecretName) { $Node.PSObject.Properties.Remove($name); $dropped.Add($Path + $name); continue }
+            foreach ($d in @(Remove-SuiteMigrationSecret -Node $Node.$name -Path ($Path + $name + '.'))) { $dropped.Add($d) }
+        }
+    }
+    elseif ($Node -is [System.Collections.IEnumerable] -and $Node -isnot [string]) {
+        foreach ($child in @($Node)) { foreach ($d in @(Remove-SuiteMigrationSecret -Node $child -Path $Path)) { $dropped.Add($d) } }
+    }
+    return $dropped.ToArray()
+}
+
+function ConvertTo-SuiteMigrationJsonBytes {
+    param([Parameter(Mandatory)]$Object)
+    $text = (ConvertTo-Json -InputObject $Object -Depth 30).Replace("`r`n", "`n") + "`n"
+    return (New-Object System.Text.UTF8Encoding($false)).GetBytes($text)
+}
+
+function Write-SuiteMigrationVerified {
+    # Writes the bytes to a temp file beside the destination, checks the SHA-256, then renames. A crash leaves only the temp file.
+    param([string]$Destination, [byte[]]$Bytes, [string]$ExpectedHash, [scriptblock]$Hook, [switch]$Overwrite)
+    $dir = Split-Path -Path $Destination -Parent
+    if (-not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Path $dir -Force) }
+    $temp = $Destination + '.migrating'
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+    [IO.File]::WriteAllBytes($temp, $Bytes)
+    Complete-SuiteMigrationCopy -Temp $temp -Destination $Destination -ExpectedHash $ExpectedHash -Hook $Hook -Overwrite:$Overwrite
+}
+
+function Copy-SuiteMigrationVerified {
+    param([string]$Source, [string]$Destination, [string]$ExpectedHash, [scriptblock]$Hook)
+    $dir = Split-Path -Path $Destination -Parent
+    if (-not (Test-Path -LiteralPath $dir)) { [void](New-Item -ItemType Directory -Path $dir -Force) }
+    $temp = $Destination + '.migrating'
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
+    $in = New-Object System.IO.FileStream($Source, [IO.FileMode]::Open, [IO.FileAccess]::Read, ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+    try {
+        $out = New-Object System.IO.FileStream($temp, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+        try { $in.CopyTo($out) } finally { $out.Dispose() }
+    }
+    finally { $in.Dispose() }
+    Complete-SuiteMigrationCopy -Temp $temp -Destination $Destination -ExpectedHash $ExpectedHash -Hook $Hook
+}
+
+function Complete-SuiteMigrationCopy {
+    param([string]$Temp, [string]$Destination, [string]$ExpectedHash, [scriptblock]$Hook, [switch]$Overwrite)
+    if ($Hook) { & $Hook 'temp-written' $Destination }
+    $actual = Get-SuiteMigrationHash -Path $Temp
+    if ($actual -ne $ExpectedHash) {
+        Remove-Item -LiteralPath $Temp -Force
+        throw [System.IO.InvalidDataException]::new("The copy of $Destination did not match its source (expected $ExpectedHash, got $actual). The old files stay in use.")
+    }
+    if ($Overwrite) { Move-Item -LiteralPath $Temp -Destination $Destination -Force } else { Move-Item -LiteralPath $Temp -Destination $Destination }
+    if ((Get-SuiteMigrationHash -Path $Destination) -ne $ExpectedHash) {
+        throw [System.IO.InvalidDataException]::new("The copy $Destination did not verify after the move.")
+    }
+}
+
+function New-SuiteMigrationItem {
+    param([string]$Id, [string]$Scope, [string]$Source, [string]$Destination = '', [string]$Sha256 = '', [string]$Status, [string]$Detail = '')
+    [pscustomobject]@{ Id = $Id; Scope = $Scope; Source = $Source; Destination = $Destination; Sha256 = $Sha256; Status = $Status; Detail = $Detail }
+}
+
+function Read-SuiteMigrationMarker {
+    param([string]$Path)
+    $m = Read-SuiteMigrationJson -Path $Path
+    $items = @()
+    if ($m -and $m.items) { $items = @($m.items | ForEach-Object { [pscustomobject]@{ id = [string]$_.id; source = [string]$_.source; destination = [string]$_.destination; sha256 = [string]$_.sha256 } }) }
+    [pscustomobject]@{ Items = $items; StartedUtc = $(if ($m) { [string]$m.startedUtc } else { '' }); CompletedUtc = $(if ($m) { [string]$m.completedUtc } else { '' }) }
+}
+
+function Write-SuiteMigrationMarker {
+    # The marker is the journal. It is written after each copy and changes only when its item list changes.
+    param([string]$SiteFolder, $Previous, [object[]]$Done, [bool]$Complete, [string]$Now)
+    $path = Join-Path $SiteFolder 'migration.json'
+    $doneDest = @{}
+    foreach ($d in $Done) { $doneDest[$d.destination.ToLowerInvariant()] = $true }
+    $merged = @(@($Previous.Items | Where-Object { -not $doneDest.ContainsKey($_.destination.ToLowerInvariant()) }) + @($Done) |
+            Sort-Object { $_.destination.ToLowerInvariant() })
+    $same = (@($Previous.Items).Count -eq $merged.Count)
+    if ($same) {
+        $prev = @($Previous.Items | Sort-Object { $_.destination.ToLowerInvariant() })
+        for ($i = 0; $i -lt $merged.Count; $i++) {
+            if ($prev[$i].id -ne $merged[$i].id -or $prev[$i].source -ne $merged[$i].source -or $prev[$i].destination -ne $merged[$i].destination -or $prev[$i].sha256 -ne $merged[$i].sha256) { $same = $false; break }
+        }
+    }
+    $hasComplete = -not [string]::IsNullOrEmpty($Previous.CompletedUtc)
+    if ((Test-Path -LiteralPath $path) -and $same -and ($hasComplete -or -not $Complete)) { return }
+    $started = $(if ($Previous.StartedUtc) { $Previous.StartedUtc } else { $Now })
+    $completed = $(if ($hasComplete) { $Previous.CompletedUtc } elseif ($Complete) { $Now } else { $null })
+    $node = [ordered]@{
+        schemaVersion     = 1
+        kind              = 'legacy-single-site'
+        startedUtc        = $started
+        completedUtc      = $completed
+        keepOldFilesUntil = 'the release after the one that switches the stores (Q-112d); a later cleanup needs the owner''s approval'
+        items             = @($merged | ForEach-Object { [ordered]@{ id = $_.id; source = $_.source; destination = $_.destination; sha256 = $_.sha256 } })
+    }
+    $bytes = ConvertTo-SuiteMigrationJsonBytes -Object $node
+    if (-not (Test-Path -LiteralPath $SiteFolder)) { [void](New-Item -ItemType Directory -Path $SiteFolder -Force) }
+    $tmp = $path + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+    [IO.File]::WriteAllBytes($tmp, $bytes)
+    Move-Item -LiteralPath $tmp -Destination $path -Force
+}
+
+function Resolve-SuiteMigrationSite {
+    # The site code in effect: -SiteCode, else the launcher's, else the PowerShell app's. Returns @{ Code; Reason }.
+    param([string]$SiteCode, [string]$LauncherSettings, [string]$AppPrefs)
+    $candidates = @()
+    if ($SiteCode) { $candidates += , @('the parameter', $SiteCode) }
+    $l = Read-SuiteMigrationJson -Path $LauncherSettings
+    if ($l -and $l.SiteCode) { $candidates += , @('suite.settings.json', [string]$l.SiteCode) }
+    $a = Read-SuiteMigrationJson -Path $AppPrefs
+    if ($a -and $a.SiteCode) { $candidates += , @('AppPackager.preferences.json', [string]$a.SiteCode) }
+    if ($candidates.Count -eq 0) {
+        return @{ Code = $null; Reason = 'No site code is configured: no site code is given, and neither suite.settings.json nor AppPackager.preferences.json holds one. Nothing is migrated.' }
+    }
+    $first = $candidates[0]
+    if (-not (Test-SuiteSiteCode -SiteCode $first[1])) {
+        return @{ Code = $null; Reason = "No site code is configured: '$($first[1])' (from $($first[0])) is not a valid site code. Nothing is migrated." }
+    }
+    return @{ Code = $first[1].ToUpperInvariant(); Reason = '' }
+}
+
+function Invoke-SuiteSiteMigration {
+    <#
+    .SYNOPSIS
+        Copies the single-site data of the PowerShell app and the suite tools into sites\<SITE>. Never moves a file.
+    .DESCRIPTION
+        Each copy is accepted only when its SHA-256 equals the source. Old files stay and keep their content. Global items
+        stay where they are. Secrets are never copied. A second run changes nothing. A run that stopped resumes where it
+        stopped. A destination with other content is kept and reported (Conflict). -DryRun lists every item with scope,
+        source, destination and hash, and writes nothing. Without a site code nothing is migrated and the report says why.
+        Returns a report object. Format-SuiteSiteMigrationReport turns it into text.
+    .PARAMETER SuiteRoot
+        The folder that holds the tool folders (app-packager-suite, app-packager, site-hygiene and the others).
+    .PARAMETER LocalRoot
+        The LOCALAPPDATA folder. Holds AppPackager\app-history.json, AppPackager\CheckConfigMgrResult.* and SignalRidgeLabs\PivotsAndScripts.
+    .PARAMETER AppPackagerRoot
+        The PowerShell app folder. Default: <SuiteRoot>\app-packager.
+    .PARAMETER Tool
+        Migrate one tool only (for example site-hygiene; app-packager-suite for the launcher). The tool calls this at its own
+        start through Resolve-SuiteToolSite. Without it the run covers every tool, the PowerShell app and the launcher.
+    .PARAMETER Hook
+        Test hook, called with a stage ('temp-written', 'item-done') and the destination. A throw simulates a crash.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SuiteRoot,
+        [string]$DataRoot,
+        [string]$SiteCode,
+        [string]$LocalRoot,
+        [string]$AppPackagerRoot,
+        [string]$Tool,
+        [switch]$DryRun,
+        [scriptblock]$Hook,
+        [datetime]$NowUtc
+    )
+    if (-not $DataRoot) { $DataRoot = Get-SuiteDataRoot }
+    if (-not $LocalRoot) { $LocalRoot = [Environment]::GetFolderPath('LocalApplicationData') }
+    if (-not $AppPackagerRoot) { $AppPackagerRoot = Join-Path $SuiteRoot 'app-packager' }
+    if (-not $PSBoundParameters.ContainsKey('NowUtc')) { $NowUtc = [datetime]::UtcNow }
+    $now = $NowUtc.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", [Globalization.CultureInfo]::InvariantCulture)
+
+    $launcherSettings = Join-Path (Join-Path $SuiteRoot 'app-packager-suite') 'suite.settings.json'
+    $appPrefs = Join-Path $AppPackagerRoot 'AppPackager.preferences.json'
+    $site = Resolve-SuiteMigrationSite -SiteCode $SiteCode -LauncherSettings $launcherSettings -AppPrefs $appPrefs
+    $dry = [bool]$DryRun
+    if (-not $site.Code) {
+        return [pscustomobject]@{ DryRun = $dry; SiteCode = $null; SiteFolder = $null; Outcome = 'NothingMigrated'; Reason = $site.Reason; Items = @() }
+    }
+
+    $siteCode = $site.Code
+    $siteFolder = Get-SuiteSiteFolder -SiteCode $siteCode -DataRoot $DataRoot
+    $marker = Read-SuiteMigrationMarker -Path (Join-Path $siteFolder 'migration.json')
+    $items = New-Object System.Collections.Generic.List[object]
+    $candidates = New-Object System.Collections.Generic.List[object]
+    $dropped = New-Object System.Collections.Generic.List[string]
+    $failed = $false
+
+    # site.json: identity, written once. An existing valid file stays as it is.
+    $siteJson = Join-Path $siteFolder 'site.json'
+    $provider = ''
+    $l = Read-SuiteMigrationJson -Path $launcherSettings
+    if ($l -and $l.SMSProvider -and (-not $l.SiteCode -or ([string]$l.SiteCode).ToUpperInvariant() -eq $siteCode)) { $provider = [string]$l.SMSProvider }
+    if (Test-Path -LiteralPath $siteJson) {
+        $existingSite = Read-SuiteMigrationJson -Path $siteJson
+        if ($existingSite -and [string]$existingSite.siteCode -ceq $siteCode) {
+            $items.Add((New-SuiteMigrationItem 'site.json' 'site' '(identity)' $siteJson (Get-SuiteMigrationHash $siteJson) 'AlreadyDone' 'exists'))
+        }
+        else { $items.Add((New-SuiteMigrationItem 'site.json' 'site' '(identity)' $siteJson '' 'Conflict' 'site.json exists for another site code or is not valid JSON; kept')) }
+    }
+    else {
+        $providers = @(); if ($provider) { $providers = @($provider) }
+        $node = [ordered]@{ schemaVersion = 1; siteCode = $siteCode; providers = $providers; createdUtc = $now; lastUsedUtc = $now; migratedFrom = 'legacy-single-site' }
+        $bytes = ConvertTo-SuiteMigrationJsonBytes -Object $node
+        $h = Get-SuiteMigrationBytesHash $bytes
+        if ($dry) { $items.Add((New-SuiteMigrationItem 'site.json' 'site' '(identity)' $siteJson $h 'Planned')) }
+        else {
+            try { Write-SuiteMigrationVerified -Destination $siteJson -Bytes $bytes -ExpectedHash $h -Hook $Hook; $items.Add((New-SuiteMigrationItem 'site.json' 'site' '(identity)' $siteJson $h 'Copied')) }
+            catch [System.IO.InvalidDataException], [System.IO.IOException], [System.UnauthorizedAccessException] {
+                $items.Add((New-SuiteMigrationItem 'site.json' 'site' '(identity)' $siteJson '' 'Failed' $_.Exception.Message))
+                return [pscustomobject]@{ DryRun = $dry; SiteCode = $siteCode; SiteFolder = $siteFolder; Outcome = 'Failed'; Reason = ''; Items = $items.ToArray() }
+            }
+        }
+    }
+
+    $addMerge = {
+        param($id, $source, $destination, $owned)
+        if ($owned.Count -gt 0) {
+            $candidates.Add([pscustomobject]@{ Id = $id; Source = $source; Destination = $destination; Owned = $owned; Kind = 'merge'; Detail = '' })
+        }
+    }
+    $settingsOwned = [ordered]@{}
+    $stateOwned = [ordered]@{}
+    # A source that names another site is not copied into this site folder. It needs its own run with that site code.
+    $otherSite = {
+        param($id, $source, $code)
+        if ($code -and ([string]$code).ToUpperInvariant() -ne $siteCode) {
+            $items.Add((New-SuiteMigrationItem $id 'site' $source '' '' 'Blocked' "the source is configured for site $code, not $siteCode; run the migration with -SiteCode $code"))
+            return $true
+        }
+        return $false
+    }
+
+    # PowerShell app preferences: site fields, site names, share root.
+    $pp = Read-SuiteMigrationJson -Path $appPrefs
+    if ($Tool) { $pp = $null }
+    if ($pp -and (& $otherSite 'ps.site-fields' $appPrefs $pp.SiteCode)) { $pp = $null }
+    if ($pp) {
+        foreach ($k in 'SiteCode', 'ProviderMachineName', 'FileShareRoot', 'ContentDistribution', 'Wsus') { if ($pp.PSObject.Properties[$k]) { $settingsOwned[$k] = $pp.$k } }
+    }
+    # Version Monitor: site code and server only. The same file holds the NVD key and a webhook URL; they are never read.
+    $vm = Read-SuiteMigrationJson -Path (Join-Path $AppPackagerRoot 'VersionMonitor\monitor-config.json')
+    if ($Tool) { $vm = $null }
+    if ($vm -and $vm.MECM -and (& $otherSite 'ps.version-monitor' (Join-Path $AppPackagerRoot 'VersionMonitor\monitor-config.json') $vm.MECM.SiteCode)) { $vm = $null }
+    if ($vm -and $vm.MECM) {
+        $v = [ordered]@{}
+        if ($vm.MECM.SiteCode) { $v['SiteCode'] = [string]$vm.MECM.SiteCode }
+        if ($vm.MECM.ServerFQDN) { $v['ServerFQDN'] = [string]$vm.MECM.ServerFQDN }
+        if ($v.Count -gt 0) { $settingsOwned['VersionMonitor'] = [pscustomobject]$v }
+    }
+    # Suite launcher: site code and SMS Provider. A key that the PowerShell app already gave keeps the first value.
+    if ($Tool -and $Tool -ne 'app-packager-suite') { $l = $null }
+    if ($l -and (& $otherSite 'suite.launcher-site' $launcherSettings $l.SiteCode)) { $l = $null }
+    if ($l) { foreach ($k in 'SiteCode', 'SMSProvider') { if ($l.PSObject.Properties[$k] -and [string]$l.$k -and -not $settingsOwned.Contains($k)) { $settingsOwned[$k] = $l.$k } } }
+
+    # Packager history: ConfigMgr check state per packager.
+    $histPath = Join-Path (Join-Path $LocalRoot 'AppPackager') 'app-history.json'
+    $hist = Read-SuiteMigrationJson -Path $histPath
+    if ($Tool) { $hist = $null }
+    if ($hist) {
+        foreach ($p in @($hist.PSObject.Properties)) {
+            $e = $p.Value
+            if ($e -and ($e.PSObject.Properties['LastCmVersion'] -or $e.PSObject.Properties['LastCmChecked'])) {
+                $o = [ordered]@{}
+                foreach ($k in 'LastCmVersion', 'LastCmChecked') { if ($e.PSObject.Properties[$k]) { $o[$k] = $e.$k } }
+                $stateOwned[$p.Name] = [pscustomobject]$o
+            }
+        }
+    }
+    foreach ($ownedSet in @($settingsOwned, $stateOwned)) {
+        foreach ($k in @($ownedSet.Keys)) { foreach ($d in @(Remove-SuiteMigrationSecret -Node $ownedSet[$k] -Path ($k + '.'))) { $dropped.Add($d) } }
+    }
+    $settingsPrimary = $launcherSettings
+    if ($pp) { $settingsPrimary = $appPrefs }
+    & $addMerge 'ps.site-fields' $settingsPrimary (Join-Path $siteFolder 'settings.json') $settingsOwned
+    & $addMerge 'ps.last-cm-version' $histPath (Join-Path (Join-Path $siteFolder 'state') 'app-state.json') $stateOwned
+
+    $addFile = {
+        param($id, $source, $destination)
+        if (Test-Path -LiteralPath $source -PathType Leaf) { $candidates.Add([pscustomobject]@{ Id = $id; Source = $source; Destination = $destination; Owned = $null; Kind = 'file'; Detail = '' }) }
+    }
+    $addFolder = {
+        param($id, $sourceDir, $destDir, $note)
+        if (-not (Test-Path -LiteralPath $sourceDir -PathType Container)) { return }
+        if ((Get-Item -LiteralPath $sourceDir -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            $items.Add((New-SuiteMigrationItem $id 'site' $sourceDir '' '' 'Blocked' 'the folder is a junction or symbolic link')); return
+        }
+        $rootLen = $sourceDir.TrimEnd('\').Length + 1
+        # Walk by hand: Windows PowerShell 5.1 follows junctions with -Recurse. A linked folder or file is blocked.
+        $files = New-Object System.Collections.Generic.List[object]
+        $stack = New-Object System.Collections.Generic.Stack[string]
+        $stack.Push($sourceDir)
+        while ($stack.Count -gt 0) {
+            $dir = $stack.Pop()
+            foreach ($e in @(Get-ChildItem -LiteralPath $dir -Force)) {
+                if ($e.Attributes -band [IO.FileAttributes]::ReparsePoint) { $items.Add((New-SuiteMigrationItem $id 'site' $e.FullName '' '' 'Blocked' 'the path is a junction or symbolic link')); continue }
+                if ($e.PSIsContainer) { $stack.Push($e.FullName) } else { $files.Add($e) }
+            }
+        }
+        foreach ($f in @($files | Sort-Object FullName)) {
+            $rel = $f.FullName.Substring($rootLen)
+            if ($note -eq 'sessions') {
+                $sj = Read-SuiteMigrationJson -Path $f.FullName
+                if ($sj -and $sj.SiteCode -and ([string]$sj.SiteCode).ToUpperInvariant() -ne $siteCode) {
+                    $items.Add((New-SuiteMigrationItem $id 'site' $f.FullName '' '' 'Blocked' "the session names site $($sj.SiteCode), not $siteCode; run the migration with -SiteCode $($sj.SiteCode)"))
+                    continue
+                }
+            }
+            $candidates.Add([pscustomobject]@{ Id = $id; Source = $f.FullName; Destination = (Join-Path $destDir $rel); Owned = $null; Kind = 'file'; Detail = '' })
+        }
+    }
+    $apLocal = Join-Path $LocalRoot 'AppPackager'
+    if (-not $Tool) {
+        & $addFile 'ps.check-cm-result' (Join-Path $apLocal 'CheckConfigMgrResult.csv') (Join-Path $siteFolder 'results\CheckConfigMgrResult.csv')
+        & $addFile 'ps.check-cm-result' (Join-Path $apLocal 'CheckConfigMgrResult.json') (Join-Path $siteFolder 'results\CheckConfigMgrResult.json')
+    }
+
+    # Tools. Each tool folder is <SuiteRoot>\<tool>. Prefs keep their site keys only, in tools\<tool>\prefs.json.
+    $tools = @(
+        @{ Id = 'suite.site-hygiene'; Tool = 'site-hygiene'; Prefs = 'SiteHygiene.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider', 'SQLServer')
+            Files = @(@('lastscan.json', 'lastscan.json'), @('suppressions.json', 'suppressions.json'), @('SiteHygiene.lastscan.json', 'lastscan.json'), @('SiteHygiene.suppressions.json', 'suppressions.json')); Folders = @(@('History', 'history'), @('Reports', 'reports')) }
+        @{ Id = 'suite.deployment-helper'; Tool = 'deployment-helper'; Prefs = 'DeploymentHelper.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider')
+            Files = @(, @('Logs\deployment-audit.jsonl', 'deployment-audit.jsonl')); Folders = @(@('Rings', 'rings'), @('Rollouts', 'rollouts')) }
+        @{ Id = 'suite.update-planner-waves'; Tool = 'update-planner'; Prefs = 'UpdatePlanner.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider', 'Waves')
+            Files = @(); Folders = @() }
+        @{ Id = 'suite.update-planner-reports'; Tool = 'update-planner'; Prefs = $null; PrefKeys = @()
+            Files = @(, @('Logs\update-planner-actions.jsonl', 'update-planner-actions.jsonl')); Folders = @(, @('Reports', 'reports')) }
+        @{ Id = 'suite.device-inspector'; Tool = 'device-inspector'; Prefs = 'DeviceInspector.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider', 'LastDevice')
+            Files = @(, @('Logs\DeviceInspector-actions.log', 'DeviceInspector-actions.log')); Folders = @(, @('Reports', 'reports')) }
+        @{ Id = 'suite.collection-manager'; Tool = 'collection-manager'; Prefs = 'CollectionManager.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider'); Files = @(); Folders = @(, @('Reports', 'reports')) }
+        @{ Id = 'suite.collection-and-compliance-manager'; Tool = 'collection-and-compliance-manager'; Prefs = 'CCM.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider'); Files = @(); Folders = @(, @('Reports', 'reports')) }
+        @{ Id = 'suite.maintenance-window-manager'; Tool = 'maintenance-window-manager'; Prefs = 'MaintWindowMgr.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider'); Files = @(); Folders = @(, @('Reports', 'reports')) }
+        @{ Id = 'suite.dp-content-manager'; Tool = 'dp-content-manager'; Prefs = 'DPContentMgr.prefs.json'; PrefKeys = @('SiteCode', 'SMSProvider'); Files = @(); Folders = @(, @('Reports', 'reports')) }
+    )
+    # A tool whose prefs name another site holds that site's data: its files and folders have no site field, so none of
+    # them go into this site folder. A tool with no prefs, or prefs with no site code, belongs to the site that migrates.
+    $otherTools = @{}
+    foreach ($t in @($tools | Where-Object { $_.Prefs -and (-not $Tool -or $_.Tool -eq $Tool) })) {
+        $pj0 = Read-SuiteMigrationJson -Path (Join-Path (Join-Path $SuiteRoot $t.Tool) $t.Prefs)
+        if ($pj0 -and $pj0.SiteCode -and ([string]$pj0.SiteCode).ToUpperInvariant() -ne $siteCode) { $otherTools[$t.Tool] = $true }
+    }
+    foreach ($t in @($tools | Where-Object { -not $Tool -or $_.Tool -eq $Tool })) {
+        $toolDir = Join-Path $SuiteRoot $t.Tool
+        $dest = Get-SuiteSiteFolder -SiteCode $siteCode -Tool $t.Tool -DataRoot $DataRoot
+        if ($t.Prefs) {
+            $prefsPath = Join-Path $toolDir $t.Prefs
+            $pj = Read-SuiteMigrationJson -Path $prefsPath
+            if ($pj -and (& $otherSite $t.Id $prefsPath $pj.SiteCode)) { $pj = $null; $otherTools[$t.Tool] = $true }
+            if ($pj) {
+                $owned = [ordered]@{}
+                foreach ($k in $t.PrefKeys) { if ($pj.PSObject.Properties[$k] -and $null -ne $pj.$k -and "$($pj.$k)" -ne '') { $owned[$k] = $pj.$k } }
+                foreach ($k in @($owned.Keys)) { foreach ($d in @(Remove-SuiteMigrationSecret -Node $owned[$k] -Path ($k + '.'))) { $dropped.Add($d) } }
+                & $addMerge $t.Id $prefsPath (Join-Path $dest 'prefs.json') $owned
+            }
+        }
+        if ($otherTools.ContainsKey($t.Tool)) { continue }
+        foreach ($f in $t.Files) { & $addFile $t.Id (Join-Path $toolDir $f[0]) (Join-Path $dest $f[1]) }
+        foreach ($d in $t.Folders) { & $addFolder $t.Id (Join-Path $toolDir $d[0]) (Join-Path $dest $d[1]) '' }
+    }
+    if (-not $Tool -or $Tool -eq 'pivots-and-scripts') {
+        $pivotsRoot = Join-Path (Join-Path $LocalRoot 'SignalRidgeLabs') 'PivotsAndScripts'
+        $pivotsDest = Get-SuiteSiteFolder -SiteCode $siteCode -Tool 'pivots-and-scripts' -DataRoot $DataRoot
+        & $addFolder 'suite.pivots-sessions' (Join-Path $pivotsRoot 'Sessions') (Join-Path $pivotsDest 'sessions') 'sessions'
+        # Pivots and Scripts keeps its preferences in its data root, not beside the script. Only the site keys are copied.
+        $pivotsPrefsPath = Join-Path $pivotsRoot 'preferences.json'
+        $pivotsPrefs = Read-SuiteMigrationJson -Path $pivotsPrefsPath
+        if ($pivotsPrefs -and (& $otherSite 'suite.pivots-prefs' $pivotsPrefsPath $pivotsPrefs.SiteCode)) { $pivotsPrefs = $null }
+        if ($pivotsPrefs) {
+            $pivotsOwned = [ordered]@{}
+            foreach ($k in 'SiteCode', 'SMSProvider') { if ($pivotsPrefs.PSObject.Properties[$k] -and "$($pivotsPrefs.$k)" -ne '') { $pivotsOwned[$k] = $pivotsPrefs.$k } }
+            & $addMerge 'suite.pivots-prefs' $pivotsPrefsPath (Join-Path $pivotsDest 'prefs.json') $pivotsOwned
+        }
+    }
+
+    # Process. A failure stops the run: the old files stay in use and nothing later is copied.
+    $done = New-Object System.Collections.Generic.List[object]
+    foreach ($c in $candidates) {
+        if ($failed) { break }
+        $item = Invoke-SuiteMigrationCandidate -Candidate $c -DryRun:$dry -Hook $Hook -Marker $marker
+        $items.Add($item)
+        if ($item.Status -eq 'Failed') { $failed = $true }
+        if (-not $dry -and ($item.Status -eq 'Copied' -or $item.Status -eq 'AlreadyDone')) {
+            $done.Add([pscustomobject]@{ id = $item.Id; source = $item.Source; destination = $item.Destination; sha256 = $item.Sha256 })
+            if ($item.Status -eq 'Copied') { Write-SuiteMigrationMarker -SiteFolder $siteFolder -Previous $marker -Done $done.ToArray() -Complete $false -Now $now }
+        }
+        if (-not $dry -and $item.Status -eq 'Copied' -and $Hook) { & $Hook 'item-done' $c.Destination }
+    }
+
+    if (-not $Tool) { foreach ($id in $script:SuiteMigrationNoSourceIds) { $items.Add((New-SuiteMigrationItem $id 'site' '(no source exists today)' '' '' 'NotPresent' 'written by a later release')) } }
+    if (-not $Tool) { foreach ($id in $script:SuiteMigrationGlobalIds) { $items.Add((New-SuiteMigrationItem $id 'global' '(stays where it is)' '' '' 'GlobalStays' 'not copied')) } }
+    if (-not $Tool) { foreach ($id in $script:SuiteMigrationSecretIds) { $items.Add((New-SuiteMigrationItem $id 'secret' '(never copied)' '' '' 'SecretNotCopied' 'secrets are never copied into a site folder')) } }
+    if ($dropped.Count -gt 0) { $items.Add((New-SuiteMigrationItem 'settings' 'secret' '(site copy)' '' '' 'SecretNotCopied' ('dropped from the site copy: ' + (($dropped | Select-Object -Unique) -join ', ')))) }
+
+    $copied = @($items | Where-Object { $_.Status -eq 'Copied' }).Count
+    $problems = @($items | Where-Object { $_.Status -eq 'Conflict' -or $_.Status -eq 'Blocked' }).Count
+    $changedSource = @($items | Where-Object { $_.Status -eq 'SourceChanged' }).Count
+    if ($failed) { $outcome = 'Failed' }
+    elseif ($dry) { $outcome = 'DryRun' }
+    elseif ($copied -gt 0) { if ($problems) { $outcome = 'MigratedWithConflicts' } else { $outcome = 'Migrated' } }
+    else { if ($problems -or $changedSource) { $outcome = 'NothingChangedWithConflicts' } else { $outcome = 'NothingChanged' } }
+    if (-not $dry -and -not $failed -and $problems -eq 0) {
+        Write-SuiteMigrationMarker -SiteFolder $siteFolder -Previous $marker -Done $done.ToArray() -Complete $true -Now $now
+    }
+    return [pscustomobject]@{ DryRun = $dry; SiteCode = $siteCode; SiteFolder = $siteFolder; Outcome = $outcome; Reason = ''; Items = $items.ToArray() }
+}
+
+function Invoke-SuiteMigrationCandidate {
+    param($Candidate, [switch]$DryRun, [scriptblock]$Hook, $Marker)
+    $c = $Candidate
+    try {
+        if ($c.Kind -eq 'merge') { return (Invoke-SuiteMigrationMerge -Candidate $c -DryRun:$DryRun -Hook $Hook -Marker $Marker) }
+        $srcHash = Get-SuiteMigrationHash -Path $c.Source
+        $detail = [string]$c.Detail
+        if (Test-Path -LiteralPath $c.Destination -PathType Leaf) {
+            $destHash = Get-SuiteMigrationHash -Path $c.Destination
+            if ($destHash -eq $srcHash) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'AlreadyDone' $detail) }
+            $recorded = @($Marker.Items | Where-Object { $_.destination -ieq $c.Destination -and $_.source -ieq $c.Source -and $_.sha256 -eq $destHash }).Count -gt 0
+            if ($recorded) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'SourceChanged' 'the source changed after the earlier copy; the copy is kept as it is') }
+            return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'Conflict' "the destination exists with different content (SHA-256 $destHash); both are kept")
+        }
+        if (Test-Path -LiteralPath $c.Destination -PathType Container) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'Conflict' 'the destination is a folder; kept') }
+        if ($DryRun) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'Planned' $detail) }
+        Copy-SuiteMigrationVerified -Source $c.Source -Destination $c.Destination -ExpectedHash $srcHash -Hook $Hook
+        return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $srcHash 'Copied' $detail)
+    }
+    catch [System.IO.InvalidDataException] { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination '' 'Failed' $_.Exception.Message) }
+    catch [System.IO.IOException] { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination '' 'Failed' $_.Exception.Message) }
+    catch [System.UnauthorizedAccessException] { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination '' 'Failed' $_.Exception.Message) }
+}
+
+function Invoke-SuiteMigrationMerge {
+    # A JSON file that another app or an earlier run may have written. An owned key is added when absent, accepted when
+    # equal and a conflict when different. Existing keys are kept. Nothing is written when any key conflicts.
+    param($Candidate, [switch]$DryRun, [scriptblock]$Hook, $Marker)
+    $c = $Candidate
+    $owned = $c.Owned
+    $ownedBytes = ConvertTo-SuiteMigrationJsonBytes -Object ([pscustomobject]$owned)
+    $ownedHash = Get-SuiteMigrationBytesHash $ownedBytes
+    if (-not (Test-Path -LiteralPath $c.Destination -PathType Leaf)) {
+        if ($DryRun) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $ownedHash 'Planned' ('keys: ' + (@($owned.Keys) -join ', '))) }
+        Write-SuiteMigrationVerified -Destination $c.Destination -Bytes $ownedBytes -ExpectedHash $ownedHash -Hook $Hook
+        return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $ownedHash 'Copied' ('keys: ' + (@($owned.Keys) -join ', ')))
+    }
+    $existing = Read-SuiteMigrationJson -Path $c.Destination
+    if ($null -eq $existing -or $existing -isnot [pscustomobject]) {
+        return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $ownedHash 'Conflict' 'the destination exists and is not a JSON object; kept')
+    }
+    $conflicts = @(); $toAdd = @()
+    foreach ($key in $owned.Keys) {
+        if (-not $existing.PSObject.Properties[$key]) { $toAdd += $key }
+        elseif ((ConvertTo-SuiteMigrationCanonical $existing.$key) -ne (ConvertTo-SuiteMigrationCanonical $owned[$key])) { $conflicts += $key }
+    }
+    if ($conflicts.Count -gt 0) {
+        $destHash = Get-SuiteMigrationHash -Path $c.Destination
+        $recorded = @($Marker.Items | Where-Object { $_.destination -ieq $c.Destination -and $_.source -ieq $c.Source -and $_.sha256 -eq $destHash }).Count -gt 0
+        if ($recorded) { $status = 'SourceChanged'; $lead = 'the source changed after the earlier copy; kept: ' } else { $status = 'Conflict'; $lead = 'the destination has other values for: ' }
+        return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $ownedHash $status ($lead + ($conflicts -join ', ') + '; both are kept'))
+    }
+    if ($toAdd.Count -eq 0) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination (Get-SuiteMigrationHash -Path $c.Destination) 'AlreadyDone') }
+    foreach ($key in $toAdd) { Add-Member -InputObject $existing -NotePropertyName $key -NotePropertyValue $owned[$key] }
+    $bytes = ConvertTo-SuiteMigrationJsonBytes -Object $existing
+    $hash = Get-SuiteMigrationBytesHash $bytes
+    if ($DryRun) { return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $hash 'Planned' ('adds keys: ' + ($toAdd -join ', '))) }
+    Write-SuiteMigrationVerified -Destination $c.Destination -Bytes $bytes -ExpectedHash $hash -Hook $Hook -Overwrite
+    return (New-SuiteMigrationItem $c.Id 'site' $c.Source $c.Destination $hash 'Copied' ('adds keys: ' + ($toAdd -join ', ')))
+}
+
+function Format-SuiteSiteMigrationReport {
+    <#
+    .SYNOPSIS
+        Text of a migration report: one row per item with status, scope, source, destination and hash.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory)]$Report)
+    $sb = New-Object System.Text.StringBuilder
+    $mode = 'run'; if ($Report.DryRun) { $mode = 'dry run' }
+    [void]$sb.AppendLine(('Site data migration ({0}): {1}' -f $mode, $Report.Outcome))
+    if ($Report.SiteCode) { [void]$sb.AppendLine(('Site: {0}  Folder: {1}' -f $Report.SiteCode, $Report.SiteFolder)) }
+    if ($Report.Reason) { [void]$sb.AppendLine($Report.Reason) }
+    foreach ($i in $Report.Items) {
+        $dest = '-'; if ($i.Destination) { $dest = $i.Destination }
+        $hash = '-'; if ($i.Sha256) { $hash = $i.Sha256 }
+        $detail = ''; if ($i.Detail) { $detail = ' | ' + $i.Detail }
+        [void]$sb.AppendLine(('{0,-15} {1,-6} {2} | {3} -> {4} | {5}{6}' -f $i.Status, $i.Scope, $i.Id, $i.Source, $dest, $hash, $detail))
+    }
+    return $sb.ToString()
 }
 #endregion

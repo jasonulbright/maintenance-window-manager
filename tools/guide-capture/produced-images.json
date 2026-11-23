@@ -1,5 +1,5 @@
 {
-  "Count": 29,
+  "Count": 31,
   "Images": [
     "console-missing-refresh.png",
     "coverage-before.png",
@@ -11,6 +11,7 @@
     "dialog-edit-window.png",
     "dialog-new-template.png",
     "dialog-new-window.png",
+    "footer-site-note.png",
     "light-coverage.png",
     "light-options.png",
     "light-templates.png",
@@ -18,6 +19,7 @@
     "options-about.png",
     "options-connection.png",
     "options-empty.png",
+    "options-site.png",
     "refresh-running.png",
     "refresh-without-connection.png",
     "start-first-run.png",

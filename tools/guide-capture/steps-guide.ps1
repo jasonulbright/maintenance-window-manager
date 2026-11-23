@@ -64,4 +64,24 @@ Section 'light' {
   Toggle-El (Get-El $win 'toggleTheme')
 }
 Section 'persist' { Invoke-El (Get-El $win 'btnViewTemplates'); Start-Sleep -Milliseconds 600; Invoke-El (Get-El $win 'Close'); Start-Sleep -Seconds 8; $win = Start-App 'start-maintenancewindowmgr.ps1' 'Maintenance Window Manager'; Shot $win 'start-reopen' }
+Section 'site' {
+  # The launcher chooses the site. Start again with a chosen site (own data root below the guide root, set in main.ps1), show the
+  # read-only Site Code box with its tooltip, then let the launcher choose another site and show the footer note.
+  Stop-App 'start-maintenancewindowmgr.ps1'; Start-Sleep -Seconds 3
+  $env:APP_PACKAGER_SITE = $Capture.SiteCode
+  $win = Start-App 'start-maintenancewindowmgr.ps1' 'Maintenance Window Manager'
+  Maximize-Win $win
+  $win = Find-Top 'Maintenance Window Manager' 10
+  Invoke-El (Get-El $win 'btnOptions'); $d = Find-Last 'Options' 10
+  $box = Get-El $d 'txtSiteCode'
+  $r = $box.Current.BoundingRectangle; [void][NativeUi]::SetCursorPos([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2)); Start-Sleep -Milliseconds 300
+  [NativeUi]::mouse_event(1, 2, 2, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 300; [NativeUi]::mouse_event(1, -2, -2, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 2500
+  Shot $d 'options-site' -Hover -PadRight 260
+  Invoke-El (Get-El $d 'btnCancel'); Start-Sleep -Seconds 1
+  Import-Module (Join-Path $appDir 'Lib\SuiteCommon\SuiteCommon.psd1') -DisableNameChecking
+  [void](Set-SuiteActiveSite -SiteCode 'CD2' -DataRoot (Get-SuiteDataRoot))
+  Start-Sleep -Seconds 8
+  Shot-Strip $win 'footer-site-note' 40
+  Remove-Item -LiteralPath Env:APP_PACKAGER_SITE -ErrorAction SilentlyContinue
+}
 Stop-App 'start-maintenancewindowmgr.ps1'

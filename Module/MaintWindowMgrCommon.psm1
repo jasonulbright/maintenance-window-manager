@@ -32,6 +32,34 @@ if (-not (Get-Module SuiteCommon)) {
 }
 
 # ---------------------------------------------------------------------------
+# Site data (Q-112f)
+# ---------------------------------------------------------------------------
+
+function Resolve-MwmReportsPath {
+    <#
+    .SYNOPSIS
+        Returns the folder for exported reports: the reports store of the active site, or Reports beside the script with no site.
+    .PARAMETER ToolRoot
+        The tool folder (the script folder). It holds the old Reports folder.
+    .PARAMETER Site
+        The result of Resolve-SuiteToolSite. A value that is not active gives the old folder.
+    .PARAMETER Create
+        Create the folder when it is missing.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$ToolRoot,
+        $Site,
+        [switch]$Create
+    )
+    $legacy = Join-Path $ToolRoot 'Reports'
+    if ($Site -and $Site.Active) { return (Resolve-SuiteToolPath -Site $Site -Name 'reports' -LegacyPath $legacy -Create:$Create) }
+    if ($Create -and -not (Test-Path -LiteralPath $legacy)) { [void](New-Item -ItemType Directory -Path $legacy -Force) }
+    return $legacy
+}
+
+# ---------------------------------------------------------------------------
 # Folder hierarchy (SMS_ObjectContainerNode + SMS_ObjectContainerItem)
 # ---------------------------------------------------------------------------
 # The CM console's left-tree folders for device collections live in
